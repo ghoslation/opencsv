@@ -148,7 +148,7 @@ class CSVParserWriterSpec extends Specification {
         where:
         nullFieldIndicator                           | expectedResult
         CSVReaderNullFieldIndicator.EMPTY_QUOTES     | "First,\"\",,Last\n"
-        CSVReaderNullFieldIndicator.EMPTY_SEPARATORS | "First,,,Last\n"
+        CSVReaderNullFieldIndicator.EMPTY_SEPARATORS | "First,,\"\",Last\n"
         CSVReaderNullFieldIndicator.BOTH             | "First,,,Last\n"
         CSVReaderNullFieldIndicator.NEITHER          | "First,null,,Last\n"
 

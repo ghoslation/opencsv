@@ -192,9 +192,30 @@ class RFC4180ParserSpec extends Specification {
         where:
         nullField                                    | string1 | string2 | string3 | string4 | string5 | expectedResult
         CSVReaderNullFieldIndicator.NEITHER          | null    | " "     | ""      | null    | ""      | NULL_STRING + ", ,," + NULL_STRING + ","
-        CSVReaderNullFieldIndicator.EMPTY_SEPARATORS | null    | " "     | ""      | null    | ""      | ", ,,,"
+        CSVReaderNullFieldIndicator.EMPTY_SEPARATORS | null    | " "     | ""      | null    | ""      | ", ,\"\",,\"\""
         CSVReaderNullFieldIndicator.EMPTY_QUOTES     | null    | " "     | ""      | null    | ""      | "\"\", ,,\"\","
         CSVReaderNullFieldIndicator.BOTH             | null    | " "     | ""      | null    | ""      | ", ,,,"
+    }
+
+    @Unroll
+    def 'Parser with NullFieldindicator of #nullField should behave consistently if possible'(CSVReaderNullFieldIndicator nullField) {
+        given:
+        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE)
+        sb.append(", ,,\"\",")
+        RFC4180ParserBuilder builder = new RFC4180ParserBuilder()
+        RFC4180Parser parser = builder.withFieldAsNull(nullField).build()
+
+        expect:
+
+        String line = sb.toString()
+        String[] valuesToParse = parser.parseLine(line)
+        String resultLine = parser.parseToLine(valuesToParse, false)
+        line == resultLine
+
+        where:
+        nullField                                    | _
+        CSVReaderNullFieldIndicator.EMPTY_SEPARATORS | _
+        CSVReaderNullFieldIndicator.EMPTY_QUOTES     | _
     }
 
     def 'able to parse a field that has a single quote at the end'() {

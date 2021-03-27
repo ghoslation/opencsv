@@ -16,6 +16,7 @@ package com.opencsv;
  limitations under the License.
  */
 
+import com.opencsv.bean.util.OrderedObject;
 import com.opencsv.exceptions.*;
 import com.opencsv.processor.RowProcessor;
 import com.opencsv.stream.reader.LineReader;
@@ -26,6 +27,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.MalformedInputException;
 import java.util.*;
 import java.util.zip.ZipException;
 
@@ -41,7 +43,9 @@ public class CSVReader implements Closeable, Iterable<String[]> {
     // context size in the exception message
     static final int CONTEXT_MULTILINE_EXCEPTION_MESSAGE_SIZE = 100;
 
-    /** The default line to start reading. */
+    /**
+     * The default line to start reading.
+     */
     public static final int DEFAULT_SKIP_LINES = 0;
 
     /**
@@ -50,10 +54,11 @@ public class CSVReader implements Closeable, Iterable<String[]> {
      */
     public static final int DEFAULT_MULTILINE_LIMIT = 0;
 
-    private static final List<Class<? extends IOException>> PASSTHROUGH_EXCEPTIONS =
-            Arrays.asList(CharacterCodingException.class, CharConversionException.class,
-                    UnsupportedEncodingException.class, UTFDataFormatException.class,
-                    ZipException.class, FileNotFoundException.class);
+    protected static final List<Class<? extends IOException>> PASSTHROUGH_EXCEPTIONS =
+            Collections.unmodifiableList(
+                    Arrays.asList(CharacterCodingException.class, CharConversionException.class,
+                            UnsupportedEncodingException.class, UTFDataFormatException.class,
+                            ZipException.class, FileNotFoundException.class, MalformedInputException.class));
 
     public static final int READ_AHEAD_LIMIT = Character.SIZE / Byte.SIZE;
     private static final int MAX_WIDTH = 100;
@@ -71,6 +76,7 @@ public class CSVReader implements Closeable, Iterable<String[]> {
     protected long linesRead = 0;
     protected long recordsRead = 0;
     protected String[] peekedLine = null;
+    final protected Queue<OrderedObject<String>> peekedLines = new LinkedList<>();
 
     private final LineValidatorAggregator lineValidatorAggregator;
     private final RowValidatorAggregator rowValidatorAggregator;
@@ -104,16 +110,17 @@ public class CSVReader implements Closeable, Iterable<String[]> {
      * Constructs CSVReader with supplied CSVParser.
      * <p>This constructor sets all necessary parameters for CSVReader, and
      * intentionally has package access so only the builder can use it.</p>
-     * @param reader         The reader to an underlying CSV source
-     * @param line           The number of lines to skip before reading
-     * @param icsvParser     The parser to use to parse input
-     * @param keepCR         True to keep carriage returns in data read, false otherwise
-     * @param verifyReader   True to verify reader before each read, false otherwise
-     * @param multilineLimit Allow the user to define the limit to the number of lines in a multiline record. Less than one means no limit.
-     * @param errorLocale    Set the locale for error messages. If null, the default locale is used.
+     *
+     * @param reader                  The reader to an underlying CSV source
+     * @param line                    The number of lines to skip before reading
+     * @param icsvParser              The parser to use to parse input
+     * @param keepCR                  True to keep carriage returns in data read, false otherwise
+     * @param verifyReader            True to verify reader before each read, false otherwise
+     * @param multilineLimit          Allow the user to define the limit to the number of lines in a multiline record. Less than one means no limit.
+     * @param errorLocale             Set the locale for error messages. If null, the default locale is used.
      * @param lineValidatorAggregator contains all the custom defined line validators.
-     * @param rowValidatorAggregator contains all the custom defined row validators.
-     * @param rowProcessor   Custom row processor to run on all columns on a csv record.
+     * @param rowValidatorAggregator  contains all the custom defined row validators.
+     * @param rowProcessor            Custom row processor to run on all columns on a csv record.
      */
     CSVReader(Reader reader, int line, ICSVParser icsvParser, boolean keepCR, boolean verifyReader, int multilineLimit,
               Locale errorLocale, LineValidatorAggregator lineValidatorAggregator, RowValidatorAggregator rowValidatorAggregator,
@@ -169,8 +176,8 @@ public class CSVReader implements Closeable, Iterable<String[]> {
      *
      * @return A List of String[], with each String[] representing a line of the
      * file.
-     * @throws IOException If bad things happen during the read
-     * @throws CsvException - if there is a failed validator.
+     * @throws IOException  If bad things happen during the read
+     * @throws CsvException If there is a failed validator
      */
     public List<String[]> readAll() throws IOException, CsvException {
 
@@ -190,11 +197,11 @@ public class CSVReader implements Closeable, Iterable<String[]> {
      *
      * @return A string array with each comma-separated element as a separate
      * entry, or null if there is no more input.
-     * @throws IOException If bad things happen during the read
-     * @throws CsvValidationException If a user defined valdators fail.
+     * @throws IOException            If bad things happen during the read
+     * @throws CsvValidationException If a user-defined validator fails
      */
     public String[] readNext() throws IOException, CsvValidationException {
-        return readNext(true);
+        return flexibleRead(true, true);
     }
 
     /**
@@ -208,7 +215,7 @@ public class CSVReader implements Closeable, Iterable<String[]> {
      */
     public String[] readNextSilently() throws IOException {
         try {
-            return readNext(false);
+            return flexibleRead(true, false);
         } catch (CsvValidationException e) {
             throw new CsvRuntimeException("A CSValidationException was thrown from the runNextSilently method which should not happen", e);
         }
@@ -216,40 +223,32 @@ public class CSVReader implements Closeable, Iterable<String[]> {
 
     /**
      * Reads the next line from the buffer and converts to a string array.
+     * The results are stored in {@link #peekedLines} and {@link #peekedLine}.
      *
-     * @param validateData Run the custom validations and processors on the
-     *                     data. You would not want to run validations and/or
-     *                     processors on header data.
-     * @return A string array with each comma-separated element as a separate
-     * entry, or null if there is no more input.
-     * @throws IOException            If bad things happen during the read
-     * @throws CsvValidationException If a user defined validators fail
+     * @throws IOException If bad things happen during the read
      */
-    private String[] readNext(boolean validateData) throws IOException, CsvValidationException {
-        
-        // If someone already peeked, we have the previously read, parsed, and
-        // validated data
-        if(peekedLine != null) {
-            String[] l = peekedLine;
-            peekedLine = null;
-            return l;
-        }
+    private void primeNextRecord() throws IOException {
 
-        String[] result = null;
         int linesInThisRecord = 0;
-        long lastSuccessfulLineRead = linesRead;
+        long lastSuccessfulLineRead = linesRead+1;
         do {
             String nextLine = getNextLine();
-            validateLine(validateData, lastSuccessfulLineRead, nextLine);
+            peekedLines.add(new OrderedObject<>(lastSuccessfulLineRead, nextLine));
             linesInThisRecord++;
+
+            // If no more input is available, check if the record is finished
+            // or simply incomplete.
             if (!hasNext) {
                 if (parser.isPending()) {
                     throw new CsvMalformedLineException(String.format(
                             ResourceBundle.getBundle(ICSVParser.DEFAULT_BUNDLE_NAME, errorLocale).getString("unterminated.quote"),
-                            StringUtils.abbreviate(parser.getPendingText(), MAX_WIDTH)), lastSuccessfulLineRead + 1, parser.getPendingText());
+                            StringUtils.abbreviate(parser.getPendingText(), MAX_WIDTH)), lastSuccessfulLineRead, parser.getPendingText());
                 }
-                return validateResult(result, lastSuccessfulLineRead + 1, validateData);
+                return;
             }
+
+
+            // If we've crossed the multiline limit, signal an error.
             if (multilineLimit > 0 && linesInThisRecord > multilineLimit) {
 
                 // get current row records Read +1
@@ -259,68 +258,70 @@ public class CSVReader implements Closeable, Iterable<String[]> {
 
                 // just to avoid out of index
                 // to get the whole context use CsvMultilineLimitBrokenException::getContext()
-                if(context.length()> CONTEXT_MULTILINE_EXCEPTION_MESSAGE_SIZE){
-                     context = context.substring(0, CONTEXT_MULTILINE_EXCEPTION_MESSAGE_SIZE);
+                if (context.length() > CONTEXT_MULTILINE_EXCEPTION_MESSAGE_SIZE) {
+                    context = context.substring(0, CONTEXT_MULTILINE_EXCEPTION_MESSAGE_SIZE);
                 }
 
                 String messageFormat = ResourceBundle.getBundle(ICSVParser.DEFAULT_BUNDLE_NAME, errorLocale).getString("multiline.limit.broken");
                 String message = String.format(errorLocale, messageFormat, multilineLimit, row, context);
                 throw new CsvMultilineLimitBrokenException(message, row, parser.getPendingText(), multilineLimit);
             }
+
+            // Combine multiple lines into one result
             String[] r = parser.parseLineMulti(nextLine);
             if (r.length > 0) {
-                if (result == null) {
-                    result = r;
+                if (peekedLine == null) {
+                    peekedLine = r;
                 } else {
-                    result = combineResultsFromMultipleReads(result, r);
+                    peekedLine = combineResultsFromMultipleReads(peekedLine, r);
                 }
             }
-        } while (parser.isPending());
 
-        return validateResult(result, lastSuccessfulLineRead + 1, validateData);
+        } while (parser.isPending());
     }
 
-    private void validateLine(boolean validateData, long lastSuccessfulLineRead, String nextLine) throws CsvValidationException {
-        if (validateData) {
-            try {
-                lineValidatorAggregator.validate(nextLine);
-            } catch (CsvValidationException cve) {
-                cve.setLineNumber(lastSuccessfulLineRead + 1);
-                throw cve;
-            }
+    /**
+     * Runs all line validators on the input.
+     *
+     * @param lastSuccessfulLineRead The line number for error messages
+     * @param nextLine The input to be validated
+     * @throws CsvValidationException Only thrown if a user-supplied validator
+     *   throws it
+     */
+    private void validateLine(long lastSuccessfulLineRead, String nextLine) throws CsvValidationException {
+        try {
+            lineValidatorAggregator.validate(nextLine);
+        } catch (CsvValidationException cve) {
+            cve.setLineNumber(lastSuccessfulLineRead);
+            throw cve;
         }
     }
 
     /**
      * Increments the number of records read if the result passed in is not null.
      *
-     * @param result The result of the read operation
-     * @param lineStartOfRow Line number that the row started on
-     * @param useRowValidators Run custom defined row validators, if any exists.
-     * @return Result that was passed in.
+     * @param result           The result of the read operation
+     * @param lineStartOfRow   Line number that the row started on
      * @throws CsvValidationException if there is a validation error caught by a custom RowValidator.
      */
-    protected String[] validateResult(String[] result, long lineStartOfRow, boolean useRowValidators) throws CsvValidationException {
+    protected void validateResult(String[] result, long lineStartOfRow) throws CsvValidationException {
         if (result != null) {
-            if (useRowValidators) {
-                if (rowProcessor != null) {
-                    rowProcessor.processRow(result);
-                }
-                try {
-                    rowValidatorAggregator.validate(result);
-                } catch (CsvValidationException cve) {
-                    cve.setLineNumber(lineStartOfRow);
-                    throw cve;
-                }
+            if (rowProcessor != null) {
+                rowProcessor.processRow(result);
             }
-            recordsRead++;
+            try {
+                rowValidatorAggregator.validate(result);
+            } catch (CsvValidationException cve) {
+                cve.setLineNumber(lineStartOfRow);
+                throw cve;
+            }
         }
-        return result;
     }
 
     /**
      * For multi-line records this method combines the current result with the result from previous read(s).
-     * @param buffer Previous data read for this record
+     *
+     * @param buffer   Previous data read for this record
      * @param lastRead Latest data read for this record.
      * @return String array with union of the buffer and lastRead arrays.
      */
@@ -335,7 +336,7 @@ public class CSVReader implements Closeable, Iterable<String[]> {
      * Reads the next line from the file.
      *
      * @return The next line from the file without trailing newline, or null if
-     *   there is no more input.
+     * there is no more input.
      * @throws IOException If bad things happen during the read
      */
     protected String getNextLine() throws IOException {
@@ -363,6 +364,7 @@ public class CSVReader implements Closeable, Iterable<String[]> {
 
     /**
      * Only useful for tests.
+     *
      * @return The maximum number of lines allowed in a multiline record.
      */
     public int getMultilineLimit() {
@@ -371,19 +373,22 @@ public class CSVReader implements Closeable, Iterable<String[]> {
 
     /**
      * Checks to see if the file is closed.
-     * Certain IOExceptions will be passed out as they are indicative of a real problem not that the file
-     * has already been closed.  These excpetions are:
+     * <p>Certain {@link IOException}s will be passed out, as they are
+     * indicative of a real problem, not that the file has already been closed.
+     * These exceptions are:<ul>
+     *     <li>CharacterCodingException</li>
+     *     <li>CharConversionException</li>
+     *     <li>FileNotFoundException</li>
+     *     <li>UnsupportedEncodingException</li>
+     *     <li>UTFDataFormatException</li>
+     *     <li>ZipException</li>
+     *     <li>MalformedInputException</li>
+     * </ul></p>
      *
-     * CharacterCodingException
-     * CharConversionException
-     * FileNotFoundException
-     * UnsupportedEncodingException
-     * UTFDataFormatException
-     * ZipException
-     *
-     * @return True if the reader can no longer be read from.
-     * @throws IOException - if verified reader is true certain IOExceptions will still be passed out
-     * as they are indicative of a problem not end of file.
+     * @return {@code true} if the reader can no longer be read from
+     * @throws IOException If {@link #verifyReader()} was set to {@code true}
+     *   certain {@link IOException}s will still be passed out as they are
+     *   indicative of a problem, not end of file.
      */
     protected boolean isClosed() throws IOException {
         if (!verifyReader) {
@@ -415,6 +420,7 @@ public class CSVReader implements Closeable, Iterable<String[]> {
 
     /**
      * Creates an Iterator for processing the CSV data.
+     *
      * @return A String[] iterator.
      */
     @Override
@@ -465,8 +471,8 @@ public class CSVReader implements Closeable, Iterable<String[]> {
      * With a CSVReader constructed like so:<br>
      * <code>
      * CSVReader c = builder.withCSVParser(new CSVParser())<br>
-     *                      .withSkipLines(2)<br>
-     *                      .build();<br>
+     * .withSkipLines(2)<br>
+     * .build();<br>
      * </code><br>
      * The initial call to getLinesRead() will be 0. After the first call to
      * readNext() then getLinesRead() will return 3 (because the header was read).
@@ -497,8 +503,8 @@ public class CSVReader implements Closeable, Iterable<String[]> {
      * With a CSVReader constructed like so:<br>
      * <code>
      * CSVReader c = builder.withCSVParser(new CSVParser())<br>
-     *                      .withSkipLines(2)<br>
-     *                      .build();<br>
+     * .withSkipLines(2)<br>
+     * .build();<br>
      * </code><br>
      * The initial call to getRecordsRead() will be 0. After the first call to
      * readNext() then getRecordsRead() will return 1. After the second call to
@@ -523,29 +529,31 @@ public class CSVReader implements Closeable, Iterable<String[]> {
 
     /**
      * Skip a given number of lines.
+     *
      * @param numberOfLinesToSkip The number of lines to skip
-     * @since 4.2
      * @throws IOException If anything bad happens when reading the file
+     * @since 4.2
      */
     public void skip(int numberOfLinesToSkip) throws IOException {
         for (int j = 0; j < numberOfLinesToSkip; j++) {
             readNextSilently();
         }
     }
-    
+
     /**
      * Sets the locale for all error messages.
+     *
      * @param errorLocale Locale for error messages. If null, the default locale
-     *   is used.
+     *                    is used.
      * @since 4.2
      */
     public void setErrorLocale(Locale errorLocale) {
         this.errorLocale = ObjectUtils.defaultIfNull(errorLocale, Locale.getDefault());
-        if(parser != null) {
+        if (parser != null) {
             parser.setErrorLocale(this.errorLocale);
         }
     }
-    
+
     /**
      * Returns the next line from the input without removing it from the
      * CSVReader and not running any validators.
@@ -554,15 +562,59 @@ public class CSVReader implements Closeable, Iterable<String[]> {
      * advances the cursor position in the input. The first call to
      * {@link #readNext()} after calling this method will return the same line
      * this method does.
-     * 
-     * @return The next line from the input, or null if there are no more lines
+     *
+     * @return The next line from the input, or {@code null} if there are no
+     *   more lines
      * @throws IOException If bad things happen during the read operation
      * @since 4.2
      */
     public String[] peek() throws IOException {
-        if(peekedLine == null) {
-            peekedLine = readNextSilently();
+        String[] result = null;
+        try {
+            result = flexibleRead(false, false);
+        } catch (CsvValidationException e) {
+            // Do nothing. We asked for no validation, so it can't really happen.
         }
-        return peekedLine;
+        return result;
+    }
+
+    /**
+     * Reads a line of input, popping or validating as desired.
+     *
+     * @param popLine Whether the line returned should be popped off the queue
+     *                of input. If this is {@code true}, this method consumes
+     *                the line and further calls will return the next line of
+     *                input. If {@code false}, the line returned stays in the
+     *                queue and further calls to this method will return the
+     *                same line again.
+     * @param validate Whether all user-supplied validators should be run.
+     * @return The next line of input
+     * @throws IOException If this exception is thrown while reading
+     * @throws CsvValidationException If a user-supplied validator throws it
+     */
+    private String[] flexibleRead(boolean popLine, boolean validate) throws IOException, CsvValidationException {
+
+        if(peekedLines.isEmpty()) {
+            primeNextRecord();
+        }
+
+        if(validate) {
+            for(OrderedObject<String> orderedObject : peekedLines) {
+                validateLine(orderedObject.getOrdinal(), orderedObject.getElement());
+            }
+            validateResult(peekedLine, linesRead);
+        }
+
+        String[] result = peekedLine;
+
+        if(popLine) {
+            peekedLines.clear();
+            peekedLine = null;
+            if(result != null) {
+                recordsRead++;
+            }
+        }
+
+        return result;
     }
 }

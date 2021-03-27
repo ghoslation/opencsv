@@ -30,7 +30,7 @@ public class GoodJoinByNameAnnotations {
     private MultiValuedMap<String, Integer> map1;
     
     @CsvBindAndJoinByName(column = "date[0-9]", elementType = Date.class, locale = "de-DE", required = true)
-    @CsvDate(value = "dd. MMM yyyy")
+    @CsvDate(value = "dd. MMMM yyyy")
     private MultiValuedMap<String, Date> map2;
     
     @CsvBindAndJoinByName(column = "regular expression will never match", elementType = String.class)

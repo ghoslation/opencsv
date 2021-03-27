@@ -91,8 +91,16 @@ that offer finer control, for those who have a need for such a thing.
 
 Performance always being one of our top concerns, reading is multi-threaded.
 There are two performance choices left in your hands:
+
 . Time vs. memory: The classic trade-off. If memory is not a problem, read using CsvToBean.parse() or CsvToBean.stream(), which will read all beans at once and are multi-threaded. If your memory is limited, use CsvToBean.iterator() and iterate over the input. Only one bean is read at a time, making multi-threading impossible and slowing down reading, but only one object is in memory at a time (assuming you process and release the object for the garbage collector immediately).
 . Ordered vs. unordered. opencsv preserves the order of the data given to it by default. Maintaining order when using parallel programming requires some extra effort which means extra CPU time. If order does not matter to you, use CsvToBeanBuilder.withOrderedResults(false). The performance benefit is not large, but it is measurable. The ordering or lack thereof applies to data as well as any captured exceptions.
+
+Let it be mentioned here that although the authors of opencsv aren't thrilled
+about the idea of using Java 8's Optional for accessor methods (that is,
+returning an Optional of your real data type from a getter or requiring an
+Optional of your real data type for a setter), we do support it as long as the
+actual field in your bean is not an Optional, but rather whatever data type the
+Optional wraps. If your getter returns an empty Optional, opencsv uses null.
 
 The bean work was begun by Kyle Miller and extended by Tom Squires and Andrew Jones.
 
@@ -144,13 +152,13 @@ Here we simply name the fields identically to the header names. After that,
 reading is a simple job:
 [source, java]
 ----
-     List<Visitors> beans = new CsvToBeanBuilder(FileReader("yourfile.csv"))
+     List<Visitors> beans = new CsvToBeanBuilder(new FileReader("yourfile.csv"))
        .withType(Visitors.class).build().parse();
 ----
 
 This will give you a list of the two beans as defined in the example input file.
-Note how type conversions to basic data types (wrapped and unwrapped primitives
-and Strings) occur automatically.
+Note how type conversions to basic data types (wrapped and unwrapped primitives,
+enumerations, Strings, and java.util.Currency) occur automatically.
 
 Input can get more complicated, though, and opencsv gives you the tools to deal
 with that. Let's start with the possibility that the header names can't be
@@ -244,11 +252,23 @@ The bean for these data would be:
 
 Besides that, the annotations behave the same as their header name counterparts.
 
+====== Enumerations
+
+Enumerations work exactly like regular primitive fields. There is only one more
+thing to say about them: input is checked against the declared values of the
+enumeration type **without regard to case**. On writing, the enumeration value
+will always be written exactly as declared.
+
+====== Currency
+
+Converting to and from ISO 4217 currency codes via java.util.Currency works
+exactly like regular primitive fields.
+
 ====== Locales, dates, numbers
-We've considered primitives, but we haven't considered more complex yet common
-data types. We have also not considered locales other than the default locale
-or formatting options beyond those provided by a locale. Here we shall do all
-of this at the same time. Consider this input file:
+We've considered simple data types, but we haven't considered more complex yet
+common data types. We have also not considered locales other than the default
+locale or formatting options beyond those provided by a locale. Here we shall
+do all of this at the same time. Consider this input file:
 
 ----
      username,valid since,annual salary
@@ -628,7 +648,7 @@ the index type to MultiValuedMap must be Integer. Values are saved under the
 index of the column position they were found in.
 
 The last thing to notice is that as long as new column positions are added to
-the end of the file and these are all new tracks, they will all be placed in the
+the end of the file, and these are all new tracks, they will all be placed in the
 variable "tracks" because the column position definition from the
 CsvBindAndJoinByPosition annotation defines an open range starting at index 7.
 
@@ -784,6 +804,125 @@ constructor, or they must be created by the enclosing bean.
 Access to subordinate beans is accomplished the same way it is in the rest of
 opencsv: accessor methods where available, and Reflection otherwise.
 
+====== Profiles
+
+There may be times when you receive differently formatted input files that
+nonetheless have the same data, and you will want to map them to the same
+bean. Here are two example inputs:
+
+This from customer 1:
+
+----
+last name,first name,middle initial,salary,height
+Jones,Andrew,R,50000.00,188
+----
+
+Compared to this from customer 2:
+
+----
+surname,given name,annual salary,height
+Jones,Andrew,5.0E5,188cm
+----
+
+As you can see, the inputs have mostly the same information, but the formats
+are incompatible for the purposes of using exactly one bean.
+
+Profiles allow you to resolve these superficial differences and use the same
+data bean for both inputs. All annotations save CsvRecurse include a "profiles"
+parameter for this purpose. CsvRecurse does not include the parameter because
+all annotations in recursively included beans are likewise subject to profile
+selection.
+
+The bean for our two inputs (and possibly more) could look like this:
+
+----
+public class Person {
+
+  @CsvBindByNames({
+    @CsvBindByName(column = "last name"),
+    @CsvBindByName(profiles = {"customer 2", "customer 5"})
+  })
+  private String surname;
+
+  @CsvBindByNames({
+    @CsvBindByName,
+    @CsvBindByName(column = "first name", profiles = "customer 1"),
+    @CsvBindByName(column = "given name", profiles = "customer 2")
+  })
+  private String name;
+
+  @CsvIgnore(profiles = "customer 2")
+  @CsvBindByName(column = "middle initial")
+  private char initial;
+
+  @CsvBindByName(column = "salary", profiles = "customer 1")
+  @CsvBindByName(column = "annual salary", profiles = "customer 2")
+  @CsvNumber(value = "#0.00", profiles = "customer 1")
+  @CsvNumber(value = "0.0#E0", profiles = "customer 2")
+  private float salaryInUSD;
+
+  @CsvBindByName(column = "height")
+  @CsvNumbers({
+    @CsvNumber("000"),
+    @CsvNumber(value = "000cm", profiles = "customer 2")
+  })
+  private int heightInCentimeters
+
+  // Accessor methods go here.
+}
+----
+
+To use this, your code might look like this:
+
+----
+List<Person> beans = new CsvToBeanBuilder<Person>(inputfile)
+  .withProfile("customer 1")
+  .withType(Person.class)
+  .build()
+  .parse();
+----
+
+The field "surname" is annotated with two CsvBindByName annotations, enclosed
+in a CsvBindByNames annotation, though the enclosure is optional. The first
+annotation does not specify any profiles, so it is used when no annotation
+for a specific profile is found, or when no profile is specified on
+parsing. It says that the default setting is to find a column named
+"last name" to bind to the field. The second annotation stipulates it is to
+be used with the profiles "customer 2" and "customer 5" (whose data we have
+not seen in this example). It does not name a column, so the typical fallback
+for header naming is used: the name of the field. In this case, that's
+"surname".
+
+The field "name" is annotated with three CsvBindByName annotations. The
+first does just what one would expect: it binds the field "name" to the
+column "name" from the input. We don't have an input like this in our
+example files, but perhaps such data come from other customers, like customer
+5. This annotation does not specify a profile, so it is the default profile.
+The second annotation is only for the profile "customer 1", and it binds
+the field to the input column named "first name". The third annotation is
+similar in function.
+
+The field "initial" is annotated with only one CsvBindByName, which binds the
+input column "middle initial" to the field. It uses the default profile. This
+field is also annotated with a CsvIgnore which says the field will be
+ignored for the profile "customer 2".
+
+The field "salaryInUSD" is annotated with two CsvBindByName annotations that
+should be self-explanatory by now. It is worth noting, though, that both are
+connected to one named profile each. If a different profile is specified
+for parsing, e.g. "customer 5", this field will simply not be bound at all
+— in other words, it will be ignored. The field is also annotated with two
+CsvNumber annotations: one each for the profiles specified in the
+CsvBindByName annotations, as it would happen. The two annotations simply
+provide different format strings for the input numbers.
+
+The field "heightInCentimeters" has only one CsvBindByName annotation to
+bind the field to the input column "height" independent of profile (since
+it is the default profile, and no other binding annotations exist for the
+field). After that come two CsvNumber annotations that demonstrate the
+same principle as the binding annotations: the first is for the default
+profile, the second is only for the profile "customer 2".
+
 ===== Reading into beans without annotations
 
 If annotations are anathema to you, you can bypass them with carefully
@@ -855,7 +994,7 @@ And use this code for reading:
 ----
 MappingStrategy<MyBean> strategy = new FuzzyMappingStrategy<>();
 strategy.setType(MyBean.class);
-List<MyBean> beans = new CsvToBeanBuilder(FileReader("yourfile.csv"))
+List<MyBean> beans = new CsvToBeanBuilder(new FileReader("yourfile.csv"))
     .withMappingStrategy(strategy)
     .build()
     .parse();

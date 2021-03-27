@@ -1,4 +1,4 @@
-package com.opencsv.bean.mocks;
+package com.opencsv.bean.mocks.number;
 
 import com.opencsv.bean.CsvBindByPosition;
 import com.opencsv.bean.CsvNumber;

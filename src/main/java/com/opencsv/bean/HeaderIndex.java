@@ -33,7 +33,7 @@ import org.apache.commons.lang3.ArrayUtils;
 public class HeaderIndex {
     
     /** The uni-directional map from column position to header name. */
-    private String[] positionToHeader = new String[0];
+    private String[] positionToHeader = ArrayUtils.EMPTY_STRING_ARRAY;
     
     /**
      * The uni-directional map from header name to (possibly multiple) column
@@ -48,7 +48,7 @@ public class HeaderIndex {
      * Empties the entire mapping.
      */
     public void clear() {
-        positionToHeader = new String[0];
+        positionToHeader = ArrayUtils.EMPTY_STRING_ARRAY;
         headerToPosition.clear();
     }
     
@@ -75,7 +75,7 @@ public class HeaderIndex {
      *   expected in the CSV input
      */
     public void initializeHeaderIndex(String[] header) {
-        positionToHeader = header != null ? ArrayUtils.clone(header): new String[0];
+        positionToHeader = header != null ? ArrayUtils.clone(header): ArrayUtils.EMPTY_STRING_ARRAY;
         headerToPosition.clear();
         int i = 0;
         while(i < positionToHeader.length) {
@@ -99,9 +99,9 @@ public class HeaderIndex {
     public int[] getByName(String headerName) {
         Collection<Integer> positions = headerToPosition.get(headerName);
         if(positions != null) {
-            return ArrayUtils.toPrimitive(positions.toArray(new Integer[positions.size()]));
+            return ArrayUtils.toPrimitive(positions.toArray(ArrayUtils.EMPTY_INTEGER_OBJECT_ARRAY));
         }
-        return new int[0];
+        return ArrayUtils.EMPTY_INT_ARRAY;
     }
     
     /**

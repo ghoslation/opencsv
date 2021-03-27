@@ -16,6 +16,7 @@
 package com.opencsv.bean;
 
 import com.opencsv.ICSVParser;
+import com.opencsv.bean.util.OpencsvUtils;
 import com.opencsv.exceptions.CsvBadConverterException;
 import com.opencsv.exceptions.CsvBeanIntrospectionException;
 import com.opencsv.exceptions.CsvConstraintViolationException;
@@ -24,6 +25,7 @@ import org.apache.commons.collections4.Bag;
 import org.apache.commons.collections4.SortedBag;
 import org.apache.commons.collections4.bag.HashBag;
 import org.apache.commons.collections4.bag.TreeBag;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.lang.reflect.Field;
@@ -44,6 +46,7 @@ public class BeanFieldSplit<T, I> extends AbstractBeanField<T, I> {
     private final Pattern splitOn, capture;
     private final String writeDelimiter, writeFormat;
     private final Class<? extends Collection> collectionType;
+    private final Class<?> elementType;
     
     /**
      * The only valid constructor.
@@ -60,6 +63,7 @@ public class BeanFieldSplit<T, I> extends AbstractBeanField<T, I> {
      * @param splitOn See {@link CsvBindAndSplitByName#splitOn()}
      * @param writeDelimiter See {@link CsvBindAndSplitByName#writeDelimiter()}
      * @param collectionType  See {@link CsvBindAndSplitByName#collectionType()}
+     * @param elementType See {@link CsvBindAndSplitByName#elementType()}
      * @param capture See {@link CsvBindAndSplitByName#capture()}
      * @param format The format string used for packaging values to be written.
      *               If {@code null} or empty, it is ignored.
@@ -67,13 +71,14 @@ public class BeanFieldSplit<T, I> extends AbstractBeanField<T, I> {
     public BeanFieldSplit(
             Class<?> type, Field field, boolean required, Locale errorLocale,
             CsvConverter converter, String splitOn, String writeDelimiter,
-            Class<? extends Collection> collectionType, String capture,
-            String format) {
+            Class<? extends Collection> collectionType, Class<?> elementType,
+            String capture, String format) {
         
         // Simple assignments
         super(type, field, required, errorLocale, converter);
         this.writeDelimiter = writeDelimiter;
         this.writeFormat = format;
+        this.elementType = elementType;
         
         // Check that we really have a collection
         if(!Collection.class.isAssignableFrom(field.getType())) {
@@ -109,7 +114,12 @@ public class BeanFieldSplit<T, I> extends AbstractBeanField<T, I> {
                 this.collectionType = ArrayList.class;
             }
             else if(Set.class.equals(fieldType)) {
-                this.collectionType = HashSet.class;
+                if(fieldType.isEnum()) {
+                    this.collectionType = EnumSet.class;
+                }
+                else {
+                    this.collectionType = HashSet.class;
+                }
             }
             else if(SortedSet.class.equals(fieldType) || NavigableSet.class.equals(fieldType)) {
                 this.collectionType = TreeSet.class;
@@ -163,7 +173,12 @@ public class BeanFieldSplit<T, I> extends AbstractBeanField<T, I> {
     protected Object convert(String value) throws CsvDataTypeMismatchException, CsvConstraintViolationException {
         Collection<Object> collection;
         try {
-            collection = collectionType.newInstance();
+            if(collectionType.equals(EnumSet.class)) {
+                collection = (Collection)EnumSet.noneOf((Class<Enum>)elementType);
+            }
+            else {
+                collection = collectionType.newInstance();
+            }
         }
         catch(InstantiationException | IllegalAccessException e) {
             CsvBeanIntrospectionException csve = new CsvBeanIntrospectionException(
@@ -176,7 +191,7 @@ public class BeanFieldSplit<T, I> extends AbstractBeanField<T, I> {
             throw csve;
         }
         
-        String[] splitValues = splitOn.split(value);
+        String[] splitValues = value == null ? ArrayUtils.EMPTY_STRING_ARRAY : splitOn.split(value);
         for(String s : splitValues) {
             if(capture != null) {
                 Matcher m = capture.matcher(s);

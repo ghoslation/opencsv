@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.opencsv.bean.concurrent;
+package com.opencsv.bean.util;
 
 /**
  * A simple class for ordering objects.
@@ -31,7 +31,7 @@ public class OrderedObject<E> {
      * @param ordinal The position in a sequence of objects
      * @param element The object being sequenced
      */
-    OrderedObject(long ordinal, E element) {
+    public OrderedObject(long ordinal, E element) {
         this.ordinal = ordinal;
         this.element = element;
     }
@@ -39,7 +39,7 @@ public class OrderedObject<E> {
     /**
      * @return The position in a sequence of objects
      */
-    long getOrdinal() {
+    public long getOrdinal() {
         return ordinal;
     }
     

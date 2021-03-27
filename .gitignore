@@ -1,6 +1,6 @@
 myfile.csv
 target/
-build
+build*
 bin
 deploy
 .idea
@@ -12,3 +12,4 @@ nbactions.xml
 .settings/
 .java-version
 *.cache
+*.patch

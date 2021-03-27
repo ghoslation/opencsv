@@ -16,11 +16,15 @@
 package com.opencsv.bean;
 
 import com.opencsv.*;
+import com.opencsv.bean.exceptionhandler.CsvExceptionHandler;
+import com.opencsv.bean.exceptionhandler.ExceptionHandlerThrow;
+import com.opencsv.bean.util.OpencsvUtils;
 import com.opencsv.enums.CSVReaderNullFieldIndicator;
 import org.apache.commons.collections4.ListValuedMap;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Reader;
 import java.lang.reflect.Field;
@@ -71,8 +75,10 @@ public class CsvToBeanBuilder<T> {
    /** @see CsvToBean#filter */
    private CsvToBeanFilter filter = null;
    
-   /** @see CsvToBean#throwExceptions */
-   private boolean throwExceptions = true;
+   /**
+    * @see CsvToBean#throwExceptions
+    */
+   private CsvExceptionHandler exceptionHandler = null;
    
    /** @see com.opencsv.CSVParser#nullFieldIndicator */
    private CSVReaderNullFieldIndicator nullFieldIndicator = null;
@@ -94,34 +100,65 @@ public class CsvToBeanBuilder<T> {
    
    /** @see com.opencsv.CSVParser#escape */
    private Character escapeChar = null;
-   
-   /** @see com.opencsv.CSVParser#strictQuotes */
-   private Boolean strictQuotes = null;
-   
-   /** @see com.opencsv.CSVParser#ignoreLeadingWhiteSpace */
-   private Boolean ignoreLeadingWhiteSpace = null;
-   
-   /** @see com.opencsv.CSVParser#ignoreQuotations */
-   private Boolean ignoreQuotations = null;
 
-   /** @see HeaderColumnNameMappingStrategy#type */
-   private Class<? extends T> type = null;
-   
-   /** @see com.opencsv.CSVReader#multilineLimit */
-   private Integer multilineLimit = null;
-   
-   /** @see com.opencsv.bean.CsvToBean#orderedResults */
-   private boolean orderedResults = true;
-   
-   /** @see com.opencsv.bean.CsvToBean#errorLocale */
-   private Locale errorLocale = Locale.getDefault();
+    /**
+     * @see com.opencsv.CSVParser#strictQuotes
+     */
+    private Boolean strictQuotes = null;
 
-   /** @see com.opencsv.bean.CsvToBean#verifiers */
-   private final List<BeanVerifier<T>> verifiers = new LinkedList<>();
+    /**
+     * @see com.opencsv.CSVParser#ignoreLeadingWhiteSpace
+     */
+    private Boolean ignoreLeadingWhiteSpace = null;
 
-   /** @see  com.opencsv.bean.AbstractMappingStrategy#ignoredFields */
-   private final ListValuedMap<Class<?>, Field> ignoredFields = new ArrayListValuedHashMap<>();
-   
+    /**
+     * @see com.opencsv.CSVParser#ignoreQuotations
+     */
+    private Boolean ignoreQuotations = null;
+
+    /**
+     * @see com.opencsv.bean.CsvToBean#setThrowExceptions(boolean)
+     */
+    private Boolean throwsExceptions = true;
+
+    /**
+     * @see HeaderColumnNameMappingStrategy#type
+     */
+    private Class<? extends T> type = null;
+
+    /**
+     * @see com.opencsv.CSVReader#multilineLimit
+     */
+    private Integer multilineLimit = null;
+
+    /**
+     * @see com.opencsv.bean.CsvToBean#orderedResults
+     */
+    private boolean orderedResults = true;
+
+    /**
+     * @see com.opencsv.bean.CsvToBean#ignoreEmptyLines
+     */
+    private boolean ignoreEmptyLines = false;
+
+    /**
+     * @see com.opencsv.bean.CsvToBean#errorLocale
+     */
+    private Locale errorLocale = Locale.getDefault();
+
+    /**
+     * @see com.opencsv.bean.CsvToBean#verifiers
+     */
+    private final List<BeanVerifier<T>> verifiers = new LinkedList<>();
+
+    /**
+     * @see com.opencsv.bean.AbstractMappingStrategy#ignoredFields
+     */
+    private final ListValuedMap<Class<?>, Field> ignoredFields = new ArrayListValuedHashMap<>();
+
+    /** @see com.opencsv.bean.AbstractMappingStrategy#profile */
+    private String profile = StringUtils.EMPTY;
+
    /**
     * Constructor with the one parameter that is most definitely mandatory, and
     * always will be.
@@ -165,7 +202,7 @@ public class CsvToBeanBuilder<T> {
         if(mappingStrategy == null && type == null) {
             throw new IllegalStateException(ResourceBundle.getBundle(ICSVParser.DEFAULT_BUNDLE_NAME, errorLocale).getString("strategy.type.missing"));
         }
-        
+
         // Build Parser and Reader
         CsvToBean<T> bean = new CsvToBean<>();
 
@@ -177,16 +214,24 @@ public class CsvToBeanBuilder<T> {
         }
 
         // Set variables in CsvToBean itself
-        bean.setThrowExceptions(throwExceptions);
+
+        if (exceptionHandler != null) {
+            bean.setExceptionHandler(exceptionHandler);
+        } else {
+            bean.setThrowExceptions(throwsExceptions);
+        }
+
         bean.setOrderedResults(orderedResults);
-        if(filter != null) { bean.setFilter(filter); }
+        if (filter != null) {
+            bean.setFilter(filter);
+        }
         bean.setVerifiers(verifiers);
-        
+
         // Now find the mapping strategy and ignore irrelevant fields.
         // It's possible the mapping strategy has already been primed, so only
         // pass on our data if the user actually gave us something.
         if(mappingStrategy == null) {
-            mappingStrategy = OpencsvUtils.determineMappingStrategy(type, errorLocale);
+            mappingStrategy = OpencsvUtils.determineMappingStrategy(type, errorLocale, profile);
         }
         if(!ignoredFields.isEmpty()) {
             mappingStrategy.ignoreFields(ignoredFields);
@@ -196,6 +241,7 @@ public class CsvToBeanBuilder<T> {
         // The error locale comes at the end so it can be propagated through all
         // of the components of CsvToBean, rendering the error locale homogeneous.
         bean.setErrorLocale(errorLocale);
+        bean.setIgnoreEmptyLines(ignoreEmptyLines);
 
         return bean;
     }
@@ -270,21 +316,46 @@ public class CsvToBeanBuilder<T> {
      * @see CsvToBean#setFilter(com.opencsv.bean.CsvToBeanFilter)
      * @param filter Please see the "See Also" section
      * @return {@code this}
-     * @deprecated Please use {@link #withVerifier(BeanVerifier)} instead.
      */
-    @Deprecated
     public CsvToBeanBuilder<T> withFilter(CsvToBeanFilter filter) {
         this.filter = filter;
         return this;
     }
 
     /**
+     * Sets how the CsvToBean will act when an exception occurs.   If both withThrowsExcpetion and
+     * {@link #withExceptionHandler(CsvExceptionHandler)} are used then the withExceptionHandler takes
+     * precedence and is used.
+     *
      * @see CsvToBean#setThrowExceptions(boolean)
+     * @see #withExceptionHandler(CsvExceptionHandler)
      * @param throwExceptions Please see the "See Also" section
      * @return {@code this}
      */
     public CsvToBeanBuilder<T> withThrowExceptions(boolean throwExceptions) {
-        this.throwExceptions = throwExceptions;
+        this.throwsExceptions = throwExceptions;
+        return this;
+    }
+
+    /**
+     * Sets the handler for recoverable exceptions raised during processing of
+     * records. If both {@link #withThrowExceptions(boolean)} and withExceptionHandler are used then the
+     * withExceptionHandler takes precedence and is used.
+     * <p>If neither this method nor {@link #withThrowExceptions(boolean)} is
+     * called, the default exception handler is
+     * {@link ExceptionHandlerThrow}.</p>
+     * <p>Please note that if both this method and
+     * {@link #withThrowExceptions(boolean)} are called, the last call wins.</p>
+     *
+     * @param exceptionHandler The exception handler to be used. If {@code null},
+     *                this method does nothing.
+     * @return {@code this}
+     * @since 5.2
+     */
+    public CsvToBeanBuilder<T> withExceptionHandler(CsvExceptionHandler exceptionHandler) {
+        if(exceptionHandler != null) {
+            this.exceptionHandler = exceptionHandler;
+        }
         return this;
     }
     
@@ -475,14 +546,36 @@ public class CsvToBeanBuilder<T> {
      * @see MappingStrategy#ignoreFields(MultiValuedMap)
      */
     public CsvToBeanBuilder<T> withIgnoreField(Class<?> type, Field field) throws IllegalArgumentException {
-        if(type != null && field != null && field.getDeclaringClass().isAssignableFrom(type)) {
+        if (type != null && field != null && field.getDeclaringClass().isAssignableFrom(type)) {
             ignoredFields.put(type, field);
-        }
-        else {
+        } else {
             throw new IllegalArgumentException(ResourceBundle.getBundle(
                     ICSVParser.DEFAULT_BUNDLE_NAME, errorLocale)
                     .getString("ignore.field.inconsistent"));
         }
+        return this;
+    }
+
+    /**
+     * @param ignore Please see the "See Also" section
+     * @return {@code this}
+     * @see CsvToBean#ignoreEmptyLines
+     */
+    public CsvToBeanBuilder<T> withIgnoreEmptyLine(boolean ignore) {
+        this.ignoreEmptyLines = ignore;
+        return this;
+    }
+
+    /**
+     * Selects a profile for deciding which configurations to use for the bean
+     * fields.
+     *
+     * @param profile The name of the profile to be used
+     * @return {@code this}
+     * @since 5.4
+     */
+    public CsvToBeanBuilder<T> withProfile(String profile) {
+        this.profile = profile;
         return this;
     }
 }

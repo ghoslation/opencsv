@@ -4,11 +4,16 @@ import com.opencsv.exceptions.CsvValidationException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 public class LineValidatorAggregatorTest {
     private static final String BAD = "bad";
@@ -117,5 +122,18 @@ public class LineValidatorAggregatorTest {
         } catch (CsvValidationException ex) {
             fail("was supposed to be valid!");
         }
+    }
+
+    @DisplayName("Short circuit if there are no validators present.")
+    @Test
+    public void shortCircuitIfNoValidators() throws CsvValidationException {
+        List<LineValidator> spyList = spy(new ArrayList<>());
+
+        aggregator.setValidators(spyList);
+
+        aggregator.validate("a,b,c");
+
+        verify(spyList).isEmpty();
+        verifyNoMoreInteractions(spyList);
     }
 }

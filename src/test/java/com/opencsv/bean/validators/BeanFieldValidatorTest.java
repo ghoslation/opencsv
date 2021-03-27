@@ -27,7 +27,7 @@ public class BeanFieldValidatorTest {
     private CsvToBean<ValidatorTestBean> createBuilderForString(String csvStrings) {
         Reader stringReader = new StringReader(csvStrings);
 
-        CsvToBeanBuilder<ValidatorTestBean> builder = new CsvToBeanBuilder(stringReader);
+        CsvToBeanBuilder<ValidatorTestBean> builder = new CsvToBeanBuilder<>(stringReader);
 
         return builder.withType(ValidatorTestBean.class).build();
     }
@@ -78,7 +78,7 @@ public class BeanFieldValidatorTest {
         }
     }
 
-    private static Stream<Arguments> createIsValidArguements() {
+    private static Stream<Arguments> createIsValidArguments() {
         return Stream.of(
                 Arguments.of("1", false),
                 Arguments.of(null, false),
@@ -97,7 +97,7 @@ public class BeanFieldValidatorTest {
 
     @DisplayName("RowValidatorAggregator isValid")
     @ParameterizedTest
-    @MethodSource("createIsValidArguements")
+    @MethodSource("createIsValidArguments")
     public void testValidatorWithParameter(String idString, boolean valid) {
         String testString = createTestString(GOOD_NAME, idString, GOOD_BIG_NUMBER_STRING);
 

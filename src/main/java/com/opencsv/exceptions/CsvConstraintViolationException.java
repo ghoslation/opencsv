@@ -30,7 +30,7 @@ package com.opencsv.exceptions;
  * @author Andrew Rucker Jones
  * @since 3.8
  */
-public class CsvConstraintViolationException extends CsvException {
+public class CsvConstraintViolationException extends CsvFieldAssignmentException {
     private static final long serialVersionUID = 1L;
 
     private transient final Object sourceObject;

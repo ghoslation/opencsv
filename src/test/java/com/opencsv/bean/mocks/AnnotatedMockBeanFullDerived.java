@@ -26,17 +26,19 @@ public class AnnotatedMockBeanFullDerived extends AnnotatedMockBeanFull {
     
     /**
      * Field for annotation tests.
-     * <p>Used for the following test cases, reading:<ul>
+     * <p>Used for the following test cases, reading:</p>
+     * <ul>
      * <li>{@link com.opencsv.bean.AnnotationTest#testGoodDerivedDataByName()}</li>
      * <li>{@link com.opencsv.bean.AnnotationTest#testGoodDerivedDataByPosition()}</li>
-     * </ul></p>
-     * <p>Used for the following test cases, writing:<ul>
+     * </ul>
+     * <p>Used for the following test cases, writing:</p>
+     * <ul>
      * <li>Writing a subclass with annotations in the subclass and the superclass</li>
      * <li>Specifying a superclass, but writing a subclass</li>
-     * </ul></p>
+     * </ul>
      */
     @CsvBindByName(required = true, column = "int in subclass")
-    @CsvBindByPosition(required = true, position = 50)
+    @CsvBindByPosition(required = true, position = 52)
     private int intInSubclass;
 
     public int getIntInSubclass() {

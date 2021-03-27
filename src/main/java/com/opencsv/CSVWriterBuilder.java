@@ -40,6 +40,7 @@ public class CSVWriterBuilder {
     private Character separator;
     private Character quotechar;
     private Character escapechar;
+    private ResultSetHelper resultSetHelper;
     private String lineEnd = ICSVWriter.DEFAULT_LINE_END;
 
     /**
@@ -151,6 +152,24 @@ public class CSVWriterBuilder {
         if (escapechar == null) {
             escapechar = ICSVWriter.DEFAULT_ESCAPE_CHARACTER;
         }
-        return new CSVWriter(writer, separator, quotechar, escapechar, lineEnd);
+        ICSVWriter icsvWriter = new CSVWriter(writer, separator, quotechar, escapechar, lineEnd);
+
+        if (resultSetHelper != null) {
+            icsvWriter.setResultService(resultSetHelper);
+        }
+
+        return icsvWriter;
+    }
+
+    /**
+     * Sets the ResultSetHelper that the ICSVWriter will use.  If it is not defined then it will not be set and will
+     * be up to the ICSVWriter to handle - CSVWriter will create one by default.
+     *
+     * @param helper ResultSetHelper to be injected into the ICSVWriter.
+     * @return The CSVWriterBuiilder with the ResultSetHelper set.
+     */
+    public CSVWriterBuilder withResultSetHelper(ResultSetHelper helper) {
+        this.resultSetHelper = helper;
+        return this;
     }
 }

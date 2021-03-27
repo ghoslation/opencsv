@@ -5,6 +5,7 @@ import spock.lang.Unroll
 
 import java.nio.channels.FileLockInterruptionException
 import java.nio.charset.CharacterCodingException
+import java.nio.charset.MalformedInputException
 import java.util.zip.ZipException
 
 class CSVReaderSpec extends Specification {
@@ -13,7 +14,7 @@ class CSVReaderSpec extends Specification {
     def 'When #exceptionClass is thrown the exception #will be caught'(Class exceptionClass, String will) {
         given:
         BufferedReader br = Stub(BufferedReader.class)
-        IOException ioe = exceptionClass.newInstance()
+        IOException ioe = exceptionClass.equals(MalformedInputException.class) ? new MalformedInputException(128) : exceptionClass.newInstance()
         br.read() >> { throw ioe }
         CSVReaderBuilder builder = new CSVReaderBuilder(br)
         CSVReader reader = builder.build()
@@ -37,6 +38,7 @@ class CSVReaderSpec extends Specification {
         CharacterCodingException.class      | "will not"
         CharConversionException.class       | "will not"
         UnsupportedEncodingException.class  | "will not"
+        MalformedInputException.class | "will not"
         UTFDataFormatException.class        | "will not"
         ZipException.class                  | "will not"
         FileNotFoundException.class         | "will not"

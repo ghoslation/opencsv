@@ -16,8 +16,15 @@
 package com.opencsv.bean.concurrent;
 
 import com.opencsv.bean.MappingStrategy;
-import com.opencsv.bean.OpencsvUtils;
-import com.opencsv.exceptions.*;
+import com.opencsv.bean.exceptionhandler.CsvExceptionHandler;
+import com.opencsv.bean.util.OpencsvUtils;
+import com.opencsv.bean.util.OrderedObject;
+import com.opencsv.exceptions.CsvChainedException;
+import com.opencsv.exceptions.CsvException;
+import com.opencsv.exceptions.CsvFieldAssignmentException;
+import com.opencsv.exceptions.CsvRuntimeException;
+
+import java.util.SortedSet;
 import java.util.concurrent.BlockingQueue;
 
 /**
@@ -34,7 +41,8 @@ public class ProcessCsvBean<T> implements Runnable {
     private final T bean;
     private final BlockingQueue<OrderedObject<String[]>> resultantLineQueue;
     private final BlockingQueue<OrderedObject<CsvException>> thrownExceptionsQueue;
-    private final boolean throwExceptions;
+    private final SortedSet<Long> expectedRecords;
+    private final CsvExceptionHandler exceptionHandler;
     
     /**
      * The only constructor for creating a line of CSV output out of a bean.
@@ -44,19 +52,23 @@ public class ProcessCsvBean<T> implements Runnable {
      * @param resultantLineQueue A queue in which to place the line created
      * @param thrownExceptionsQueue A queue in which to place a thrown
      *   exception, if one is thrown
-     * @param throwExceptions Whether exceptions should be thrown or captured
-     *   for later processing
+     * @param expectedRecords A list of outstanding record numbers so gaps
+     *                        in ordering due to filtered input or exceptions
+     *                        while converting can be detected.
+     * @param exceptionHandler The handler for exceptions thrown during record
+     *                         processing
      */
     public ProcessCsvBean(long lineNumber, MappingStrategy<T> mappingStrategy,
             T bean, BlockingQueue<OrderedObject<String[]>> resultantLineQueue,
             BlockingQueue<OrderedObject<CsvException>> thrownExceptionsQueue,
-            boolean throwExceptions) {
+            SortedSet<Long> expectedRecords, CsvExceptionHandler exceptionHandler) {
         this.lineNumber = lineNumber;
         this.mappingStrategy = mappingStrategy;
         this.bean = bean;
         this.resultantLineQueue = resultantLineQueue;
         this.thrownExceptionsQueue = thrownExceptionsQueue;
-        this.throwExceptions = throwExceptions;
+        this.expectedRecords = expectedRecords;
+        this.exceptionHandler = exceptionHandler;
     }
     
     @Override
@@ -65,19 +77,17 @@ public class ProcessCsvBean<T> implements Runnable {
             OpencsvUtils.queueRefuseToAcceptDefeat(resultantLineQueue,
                     new OrderedObject<>(lineNumber, mappingStrategy.transmuteBean(bean)));
         }
-        catch (CsvException e) {
-            e.setLineNumber(lineNumber);
-            if(throwExceptions) {
-                throw new RuntimeException(e);
-            }
-            OpencsvUtils.queueRefuseToAcceptDefeat(thrownExceptionsQueue,
-                    new OrderedObject<>(lineNumber, e));
+        catch (CsvFieldAssignmentException | CsvChainedException e) {
+            expectedRecords.remove(lineNumber);
+            OpencsvUtils.handleException(e, lineNumber, exceptionHandler, thrownExceptionsQueue);
         }
         catch(CsvRuntimeException csvre) {
+            expectedRecords.remove(lineNumber);
             // Rethrowing exception here because I do not want the CsvRuntimeException caught and rewrapped in the catch below.
             throw csvre;
         }
         catch(Exception t) {
+            expectedRecords.remove(lineNumber);
             throw new RuntimeException(t);
         }
     }

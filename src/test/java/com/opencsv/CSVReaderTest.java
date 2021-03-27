@@ -19,6 +19,7 @@ package com.opencsv;
 import com.opencsv.enums.CSVReaderNullFieldIndicator;
 import com.opencsv.exceptions.CsvException;
 import com.opencsv.exceptions.CsvValidationException;
+import com.opencsv.util.MockDataBuilder;
 import org.junit.jupiter.api.*;
 
 import java.io.*;
@@ -32,6 +33,7 @@ import static org.junit.Assert.*;
 public class CSVReaderTest {
 
     CSVReader csvr;
+    MockDataBuilder mockDataBuilder;
 
     private static Locale systemLocale;
 
@@ -48,15 +50,19 @@ public class CSVReaderTest {
     @BeforeEach
     public void setUp() {
         Locale.setDefault(Locale.US);
+        MockDataBuilder builder = new MockDataBuilder();
+
         StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-        sb.append("a,b,c").append("\n");   // standard case
-        sb.append("a,\"b,b,b\",c").append("\n");  // quoted elements
-        sb.append(",,").append("\n"); // empty elements
-        sb.append("a,\"PO Box 123,\nKippax,ACT. 2615.\nAustralia\",d.\n");
-        sb.append("\"Glen \"\"The Man\"\" Smith\",Athlete,Developer\n"); // Test quoted quote chars
-        sb.append("\"\"\"\"\"\",\"test\"\n"); // """""","test"  representing:  "", test
-        sb.append("\"a\nb\",b,\"\nd\",e\n");
-        csvr = new CSVReader(new StringReader(sb.toString()));
+        builder.addDataRow("a,b,c");   // standard case
+        builder.addDataRow("a,\"b,b,b\",c");  // quoted elements
+        builder.addDataRow(",,"); // empty elements
+        builder.addDataRow("a,\"PO Box 123,\nKippax,ACT. 2615.\nAustralia\",d.");
+        builder.addDataRow("\"Glen \"\"The Man\"\" Smith\",Athlete,Developer"); // Test quoted quote chars
+        builder.addDataRow("\"\"\"\"\"\",\"test\""); // """""","test"  representing:  "", test
+        builder.addDataRow("\"a\nb\",b,\"\nd\",e");
+        csvr = new CSVReader(builder.buildStringReader());
+
+        mockDataBuilder = new MockDataBuilder();
     }
 
 
@@ -105,12 +111,10 @@ public class CSVReaderTest {
 
     @Test
     public void readerCanHandleNullInString() throws IOException, CsvValidationException {
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-        sb.append("a,\0b,c");
 
-        StringReader reader = new StringReader(sb.toString());
+        mockDataBuilder.addDataRow("a,\0b,c");
 
-        CSVReaderBuilder builder = new CSVReaderBuilder(reader);
+        CSVReaderBuilder builder = new CSVReaderBuilder(mockDataBuilder.buildStringReader());
         CSVReader defaultReader = builder.build();
 
         String[] nextLine = defaultReader.readNext();
@@ -123,15 +127,15 @@ public class CSVReaderTest {
 
     @Test
     public void testParseLineStrictQuote() throws IOException, CsvValidationException {
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-        sb.append("a,b,c").append("\n");   // standard case
-        sb.append("a,\"b,b,b\",c").append("\n");  // quoted elements
-        sb.append(",,").append("\n"); // empty elements
-        sb.append("a,\"PO Box 123,\nKippax,ACT. 2615.\nAustralia\",d.\n");
-        sb.append("\"Glen \"\"The Man\"\" Smith\",Athlete,Developer\n"); // Test quoted quote chars
-        sb.append("\"\"\"\"\"\",\"test\"\n"); // """""","test"  representing:  "", test
-        sb.append("\"a\nb\",b,\"\nd\",e\n");
-        csvr = new CSVReaderBuilder(new StringReader(sb.toString()))
+
+        mockDataBuilder.addDataRow("a,b,c");   // standard case
+        mockDataBuilder.addDataRow("a,\"b,b,b\",c");  // quoted elements
+        mockDataBuilder.addDataRow(",,"); // empty elements
+        mockDataBuilder.addDataRow("a,\"PO Box 123,\nKippax,ACT. 2615.\nAustralia\",d.");
+        mockDataBuilder.addDataRow("\"Glen \"\"The Man\"\" Smith\",Athlete,Developer"); // Test quoted quote chars
+        mockDataBuilder.addDataRow("\"\"\"\"\"\",\"test\""); // """""","test"  representing:  "", test
+        mockDataBuilder.addDataRow("\"a\nb\",b,\"\nd\",e");
+        csvr = new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                 .withCSVParser(new CSVParserBuilder()
                         .withStrictQuotes(true)
                         .build())
@@ -195,10 +199,9 @@ public class CSVReaderTest {
     @Test
     public void testOptionalConstructors() throws IOException, CsvValidationException {
 
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-        sb.append("a\tb\tc").append("\n");   // tab separated case
-        sb.append("a\t'b\tb\tb'\tc").append("\n");  // single quoted elements
-        CSVReader c = new CSVReaderBuilder(new StringReader(sb.toString()))
+        mockDataBuilder.addDataRow("a\tb\tc");   // tab separated case
+        mockDataBuilder.addDataRow("a\t'b\tb\tb'\tc");  // single quoted elements
+        CSVReader c = new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                 .withCSVParser(new CSVParserBuilder()
                         .withQuoteChar('\'')
                         .withSeparator('\t')
@@ -214,10 +217,10 @@ public class CSVReaderTest {
 
     @Test
     public void parseQuotedStringWithDefinedSeparator() throws IOException, CsvValidationException {
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-        sb.append("a\tb\tc").append("\n");   // tab separated case
 
-        CSVReader c = new CSVReaderBuilder(new StringReader(sb.toString()))
+        mockDataBuilder.addDataRow("a\tb\tc");   // tab separated case
+
+        CSVReader c = new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                 .withCSVParser(new CSVParserBuilder()
                         .withSeparator('\t')
                         .build())
@@ -235,11 +238,10 @@ public class CSVReaderTest {
     @Test
     public void testSkippingLines() throws IOException, CsvValidationException {
 
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-        sb.append("Skip this line\t with tab").append("\n");   // should skip this
-        sb.append("And this line too").append("\n");   // and this
-        sb.append("a\t'b\tb\tb'\tc").append("\n");  // single quoted elements
-        CSVReader c = new CSVReaderBuilder(new StringReader(sb.toString()))
+        mockDataBuilder.addDataRow("Skip this line\t with tab");   // should skip this
+        mockDataBuilder.addDataRow("And this line too");   // and this
+        mockDataBuilder.addDataRow("a\t'b\tb\tb'\tc");  // single quoted elements
+        CSVReader c = new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                 .withCSVParser(new CSVParserBuilder()
                         .withQuoteChar('\'')
                         .withSeparator('\t')
@@ -261,14 +263,13 @@ public class CSVReaderTest {
     @Test
     public void linesAndRecordsRead() throws IOException, CsvValidationException {
 
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-        sb.append("Skip this line\t with tab").append("\n");   // should skip this
-        sb.append("And this line too").append("\n");   // and this
-        sb.append("a,b,c").append("\n");  // second line
-        sb.append("\n");                  // no data here just a blank line
-        sb.append("a,\"b\nb\",c");
+        mockDataBuilder.addDataRow("Skip this line\t with tab");   // should skip this
+        mockDataBuilder.addDataRow("And this line too");   // and this
+        mockDataBuilder.addDataRow("a,b,c");  // second line
+        mockDataBuilder.addDataRow("");                  // no data here just a blank line
+        mockDataBuilder.addDataRow("a,\"b\nb\",c");
 
-        CSVReaderBuilder builder = new CSVReaderBuilder(new StringReader(sb.toString()));
+        CSVReaderBuilder builder = new CSVReaderBuilder(mockDataBuilder.buildStringReader());
         CSVReader c = builder.withCSVParser(new CSVParser())
                 .withSkipLines(2)
                 .build();
@@ -310,11 +311,10 @@ public class CSVReaderTest {
     @Test
     public void testSkippingLinesWithDifferentEscape() throws IOException, CsvValidationException {
 
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-        sb.append("Skip this line?t with tab").append("\n");   // should skip this
-        sb.append("And this line too").append("\n");   // and this
-        sb.append("a\t'b\tb\tb'\t'c'").append("\n");  // single quoted elements
-        CSVReader c = new CSVReaderBuilder(new StringReader(sb.toString()))
+        mockDataBuilder.addDataRow("Skip this line?t with tab");   // should skip this
+        mockDataBuilder.addDataRow("And this line too");   // and this
+        mockDataBuilder.addDataRow("a\t'b\tb\tb'\t'c'");  // single quoted elements
+        CSVReader c = new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                 .withCSVParser(new CSVParserBuilder()
                         .withQuoteChar('\'')
                         .withSeparator('\t')
@@ -339,12 +339,9 @@ public class CSVReaderTest {
      */
     @Test
     public void testNormalParsedLine() throws IOException, CsvValidationException {
+        mockDataBuilder.addDataRow("a,1234567,c");// a,1234,c
 
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-
-        sb.append("a,1234567,c").append("\n");// a,1234,c
-
-        CSVReader c = new CSVReader(new StringReader(sb.toString()));
+        CSVReader c = new CSVReader(mockDataBuilder.buildStringReader());
 
         String[] nextLine = c.readNext();
         assertEquals(3, nextLine.length);
@@ -364,11 +361,9 @@ public class CSVReaderTest {
     @Test
     public void testASingleQuoteAsDataElement() throws IOException, CsvValidationException {
 
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
+        mockDataBuilder.addDataRow("a,'''',c");// a,',c
 
-        sb.append("a,'''',c").append("\n");// a,',c
-
-        CSVReader c = new CSVReaderBuilder(new StringReader(sb.toString()))
+        CSVReader c = new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                 .withCSVParser(new CSVParserBuilder()
                         .withQuoteChar('\'')
                         .withSeparator(',')
@@ -393,11 +388,9 @@ public class CSVReaderTest {
     @Test
     public void testASingleQuoteAsDataElementWithEmptyField() throws IOException, CsvValidationException {
 
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
+        mockDataBuilder.addDataRow("a,'',c");// a,,c
 
-        sb.append("a,'',c").append("\n");// a,,c
-
-        CSVReader c = new CSVReaderBuilder(new StringReader(sb.toString()))
+        CSVReader c = new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                 .withCSVParser(new CSVParserBuilder()
                         .withQuoteChar('\'')
                         .withSeparator(',')
@@ -415,11 +408,9 @@ public class CSVReaderTest {
 
     @Test
     public void testSpacesAtEndOfString() throws IOException, CsvValidationException {
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
+        mockDataBuilder.addDataRow("\"a\",\"b\",\"c\"   ");
 
-        sb.append("\"a\",\"b\",\"c\"   ");
-
-        CSVReader c = new CSVReaderBuilder(new StringReader(sb.toString()))
+        CSVReader c = new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                 .withCSVParser(new CSVParserBuilder()
                         .withStrictQuotes(true)
                         .build())
@@ -436,12 +427,9 @@ public class CSVReaderTest {
 
     @Test
     public void testEscapedQuote() throws IOException, CsvValidationException {
+        mockDataBuilder.addDataRow("a,\"123\\\"4567\",c");// a,123"4",c
 
-        StringBuilder sb = new StringBuilder();
-
-        sb.append("a,\"123\\\"4567\",c").append("\n");// a,123"4",c
-
-        CSVReader c = new CSVReader(new StringReader(sb.toString()));
+        CSVReader c = new CSVReader(mockDataBuilder.buildStringReader());
 
         String[] nextLine = c.readNext();
         assertEquals(3, nextLine.length);
@@ -451,12 +439,9 @@ public class CSVReaderTest {
 
     @Test
     public void testEscapedEscape() throws IOException, CsvValidationException {
+        mockDataBuilder.addDataRow("a,\"123\\\\4567\",c");// a,123"4",c
 
-        StringBuilder sb = new StringBuilder();
-
-        sb.append("a,\"123\\\\4567\",c").append("\n");// a,123"4",c
-
-        CSVReader c = new CSVReader(new StringReader(sb.toString()));
+        CSVReader c = new CSVReader(mockDataBuilder.buildStringReader());
 
         String[] nextLine = c.readNext();
         assertEquals(3, nextLine.length);
@@ -474,12 +459,9 @@ public class CSVReaderTest {
      */
     @Test
     public void testSingleQuoteWhenDoubleQuoteIsQuoteChar() throws IOException, CsvValidationException {
+        mockDataBuilder.addDataRow("a,'',c");// a,'',c
 
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-
-        sb.append("a,'',c").append("\n");// a,'',c
-
-        CSVReader c = new CSVReader(new StringReader(sb.toString()));
+        CSVReader c = new CSVReader(mockDataBuilder.buildStringReader());
 
         String[] nextLine = c.readNext();
         assertEquals(3, nextLine.length);
@@ -497,12 +479,9 @@ public class CSVReaderTest {
      */
     @Test
     public void testQuotedParsedLine() throws IOException, CsvValidationException {
+        mockDataBuilder.addDataRow("\"a\",\"1234567\",\"c\""); // "a","1234567","c"
 
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-
-        sb.append("\"a\",\"1234567\",\"c\"").append("\n"); // "a","1234567","c"
-
-        CSVReader c = new CSVReaderBuilder(new StringReader(sb.toString()))
+        CSVReader c = new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                 .withCSVParser(new CSVParserBuilder()
                         .withStrictQuotes(true)
                         .build())
@@ -520,14 +499,11 @@ public class CSVReaderTest {
 
     @Test
     public void bug106ParseLineWithCarriageReturnNewLineStrictQuotes() throws IOException, CsvValidationException {
-
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-
-        sb.append("\"a\",\"123\r\n4567\",\"c\"").append("\n"); // "a","123\r\n4567","c"
+        mockDataBuilder.addDataRow("\"a\",\"123\r\n4567\",\"c\""); // "a","123\r\n4567","c"
 
         // public CSVReader(Reader reader, char separator, char quotechar, char escape, int line, boolean strictQuotes,
         // boolean ignoreLeadingWhiteSpace, boolean keepCarriageReturn)
-        CSVReader c = new CSVReaderBuilder(new StringReader(sb.toString()))
+        CSVReader c = new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                 .withCSVParser(new CSVParserBuilder()
                         .withStrictQuotes(true)
                         .build())
@@ -546,11 +522,9 @@ public class CSVReaderTest {
 
     @Test
     public void testIssue2992134OutOfPlaceQuotes() throws IOException, CsvValidationException {
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
+        mockDataBuilder.addDataRow("a,b,c,ddd\\\"eee\nf,g,h,\"iii,jjj\"");
 
-        sb.append("a,b,c,ddd\\\"eee\nf,g,h,\"iii,jjj\"");
-
-        CSVReader c = new CSVReader(new StringReader(sb.toString()));
+        CSVReader c = new CSVReader(mockDataBuilder.buildStringReader());
 
         String[] nextLine = c.readNext();
 
@@ -562,12 +536,10 @@ public class CSVReaderTest {
 
     @Test
     public void quoteAndEscapeMustBeDifferent() {
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-
-        sb.append("a,b,c,ddd\\\"eee\nf,g,h,\"iii,jjj\"");
+        mockDataBuilder.addDataRow("a,b,c,ddd\\\"eee\nf,g,h,\"iii,jjj\"");
 
         Assertions.assertThrows(UnsupportedOperationException.class, () -> {
-            new CSVReaderBuilder(new StringReader(sb.toString()))
+            new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                     .withCSVParser(new CSVParserBuilder()
                             .withEscapeChar(ICSVParser.DEFAULT_QUOTE_CHARACTER)
                             .build())
@@ -577,12 +549,10 @@ public class CSVReaderTest {
 
     @Test
     public void separatorAndEscapeMustBeDifferent() {
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-
-        sb.append("a,b,c,ddd\\\"eee\nf,g,h,\"iii,jjj\"");
+        mockDataBuilder.addDataRow("a,b,c,ddd\\\"eee\nf,g,h,\"iii,jjj\"");
 
         Assertions.assertThrows(UnsupportedOperationException.class, () -> {
-            new CSVReaderBuilder(new StringReader(sb.toString()))
+            new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                     .withCSVParser(new CSVParserBuilder()
                             .withEscapeChar(ICSVParser.DEFAULT_SEPARATOR)
                             .build())
@@ -592,12 +562,10 @@ public class CSVReaderTest {
 
     @Test
     public void separatorAndQuoteMustBeDifferent() {
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-
-        sb.append("a,b,c,ddd\\\"eee\nf,g,h,\"iii,jjj\"");
+        mockDataBuilder.addDataRow("a,b,c,ddd\\\"eee\nf,g,h,\"iii,jjj\"");
 
         Assertions.assertThrows(UnsupportedOperationException.class, () -> {
-            new CSVReaderBuilder(new StringReader(sb.toString()))
+            new CSVReaderBuilder(mockDataBuilder.buildStringReader())
                     .withCSVParser(new CSVParserBuilder()
                             .withQuoteChar(ICSVParser.DEFAULT_SEPARATOR)
                             .build())
@@ -701,13 +669,9 @@ public class CSVReaderTest {
 
     @Test
     public void featureRequest60ByDefaultEmptyFieldsAreBlank() throws IOException, CsvValidationException {
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
+        mockDataBuilder.addDataRow(",,,\"\",");
 
-        sb.append(",,,\"\",");
-
-        StringReader stringReader = new StringReader(sb.toString());
-
-        CSVReaderBuilder builder = new CSVReaderBuilder(stringReader);
+        CSVReaderBuilder builder = new CSVReaderBuilder(mockDataBuilder.buildStringReader());
         CSVReader csvReader = builder.build();
 
         String[] row = csvReader.readNext();
@@ -723,13 +687,8 @@ public class CSVReaderTest {
     @Test
     public void featureRequest60TreatEmptyFieldsAsNull() throws IOException, CsvValidationException {
 
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-
-        sb.append(",,,\"\",");
-
-        StringReader stringReader = new StringReader(sb.toString());
-
-        CSVReaderBuilder builder = new CSVReaderBuilder(stringReader);
+        mockDataBuilder.addDataRow(",,,\"\",");
+        CSVReaderBuilder builder = new CSVReaderBuilder(mockDataBuilder.buildStringReader());
 
         CSVReader csvReader = builder.withFieldAsNull(CSVReaderNullFieldIndicator.EMPTY_SEPARATORS).build();
 
@@ -746,13 +705,9 @@ public class CSVReaderTest {
 
     @Test
     public void featureRequest60TreatEmptyDelimitedFieldsAsNull() throws IOException, CsvValidationException {
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
+        mockDataBuilder.addDataRow(",,,\"\",");
 
-        sb.append(",,,\"\",");
-
-        StringReader stringReader = new StringReader(sb.toString());
-
-        CSVReaderBuilder builder = new CSVReaderBuilder(stringReader);
+        CSVReaderBuilder builder = new CSVReaderBuilder(mockDataBuilder.buildStringReader());
         CSVReader csvReader = builder.withFieldAsNull(CSVReaderNullFieldIndicator.EMPTY_QUOTES).build();
 
         String item[] = csvReader.readNext();
@@ -767,14 +722,8 @@ public class CSVReaderTest {
 
     @Test
     public void featureRequest60TreatEmptyFieldsDelimitedOrNotAsNull() throws IOException, CsvValidationException {
-
-        StringBuilder sb = new StringBuilder(ICSVParser.INITIAL_READ_SIZE);
-
-        sb.append(",,,\"\",");
-
-        StringReader stringReader = new StringReader(sb.toString());
-
-        CSVReaderBuilder builder = new CSVReaderBuilder(stringReader);
+        mockDataBuilder.addDataRow(",,,\"\",");
+        CSVReaderBuilder builder = new CSVReaderBuilder(mockDataBuilder.buildStringReader());
         CSVReader csvReader = builder.withFieldAsNull(CSVReaderNullFieldIndicator.BOTH).build();
 
         String item[] = csvReader.readNext();

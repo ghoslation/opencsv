@@ -4,14 +4,18 @@ import com.opencsv.exceptions.CsvValidationException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 public class RowValidatorAggregatorTest {
     private static final String[] GOOD_ROW = {"8675309", "test@email.name"};
@@ -129,5 +133,18 @@ public class RowValidatorAggregatorTest {
         return exceptionMessage.contains("First row should not be empty or null")
                 || exceptionMessage.contains("Row should not be empty or null")
                 || exceptionMessage.contains("Row was expected to have 2 elements but had ");
+    }
+
+    @DisplayName("Short circuit if there are no validators present.")
+    @Test
+    public void shortCircuitIfNoValidators() throws CsvValidationException {
+        List<RowValidator> spyList = spy(new ArrayList<>());
+
+        aggregator.setValidators(spyList);
+
+        aggregator.validate(GOOD_ROW);
+
+        verify(spyList).isEmpty();
+        verifyNoMoreInteractions(spyList);
     }
 }

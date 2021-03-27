@@ -21,28 +21,30 @@ package com.opencsv.bean;
  * <p>Using a filter means you are looking at the data from the input after it
  * has been parsed, but before a bean has been created and populated.</p>
  * <p>Filters <em>must</em> be thread-safe.</p>
- * <p>Here's an example showing how to use {@link CsvToBean} with a column
- * name mapping and line filtering.  It assumes that there is a class named
- * <code>Feature</code> defined with setters <code>setName(String)</code> and
- * <code>setState(String)</code>.  The FEATURE_NAME and STATE columns in the
- * CSV file will be used.  Any additional columns will be ignored.  The filter
- * will eliminate any lines where the STATE value is "production".</p>
+ *
+ * Where possible use the BeanVerifier as you have the ability to to check specific
+ * fields in the object.   If you know the order of the data OR your checks are checking
+ * something other than the content/structure/format of the data (IE filter out any line
+ * that does not have 10 columns) then use the CsvToBeanFilter.
+ *
+ * <p>Here's an example showing how to use {@link CsvToBean} that removes empty lines.
+ * Since the parser returns an array with a single empty string for a blank line
+ * that is what it is checking.</p>
  *
  * <pre>
  * {@code
- * private class StateFilter implements CsvToBeanFilter {
+ * private class EmptyLineFilter implements CsvToBeanFilter {
  *
  * 	private final MappingStrategy strategy;
  *
- * 	public StateFilter(MappingStrategy strategy) {
+ * 	public EmptyLineFilter(MappingStrategy strategy) {
  * 		this.strategy = strategy;
- * 	}
+ *    }
  *
  * 	public boolean allowLine(String[] line) {
- * 		String value = line[1];
- * 		boolean result = !"production".equals(value);
- * 		return result;
- * 	}
+ * 		boolean blankLine = line.length == 1 && line[0].isEmpty();
+ * 		return !blankLine;
+ *    }
  *
  * }
  *
@@ -54,16 +56,16 @@ package com.opencsv.bean;
  * 	strategy.setColumnMapping(columnMap);
  * 	strategy.setType(Feature.class);
  * 	CSVReader reader = new CSVReader(streamReader);
- * 	CsvToBeanFilter filter = new StateFilter(strategy);
+ * 	CsvToBeanFilter filter = new EmptyLineFilter(strategy);
  * 	return new CsvToBean().parse(strategy, reader, filter);
  * }
  * }
  * </pre>
  *
  * @see BeanVerifier
- * @deprecated Please use {@link BeanVerifier} instead.
+ *
  */
-@Deprecated
+
 public interface CsvToBeanFilter {
 
    /**

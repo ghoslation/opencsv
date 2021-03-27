@@ -200,7 +200,7 @@ abstract public class BeanFieldJoin<T, I> extends BeanFieldSingleValue<T, I> {
                 @SuppressWarnings("unchecked")
                 MultiValuedMap<Object,Object> map = (MultiValuedMap<Object,Object>) value;
                 Collection<Object> splitCollection = map.get(index);
-                splitObjects = splitCollection.toArray(new Object[splitCollection.size()]);
+                splitObjects = splitCollection.toArray(ArrayUtils.EMPTY_OBJECT_ARRAY);
             }
             else {
                 // Note about code coverage: I sincerely doubt this code is

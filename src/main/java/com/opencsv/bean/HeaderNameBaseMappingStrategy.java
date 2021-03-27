@@ -6,7 +6,7 @@ import com.opencsv.exceptions.CsvBadConverterException;
 import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
 import org.apache.commons.collections4.ListValuedMap;
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -42,7 +42,14 @@ abstract public class HeaderNameBaseMappingStrategy<T> extends AbstractMappingSt
         }
 
         // Read the header
-        String[] header = ObjectUtils.defaultIfNull(reader.readNextSilently(), ArrayUtils.EMPTY_STRING_ARRAY);
+        String[] header = ArrayUtils.nullToEmpty(reader.readNextSilently());
+        for(int i = 0; i < header.length; i++) {
+            // For the case that a header is empty and someone configured
+            // empty fields to be null
+            if(header[i] == null) {
+                header[i] = StringUtils.EMPTY;
+            }
+        }
         headerIndex.initializeHeaderIndex(header);
 
         // Throw an exception if any required headers are missing

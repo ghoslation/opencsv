@@ -18,6 +18,7 @@ package com.opencsv.bean;
 import com.opencsv.ICSVParser;
 import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
 import org.apache.commons.collections4.MultiValuedMap;
+import org.apache.commons.lang3.ArrayUtils;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -157,7 +158,7 @@ public class FieldMapByName<T> extends AbstractFieldMap<String, String, RegexToB
         
         // Sort and return
         headerList.sort(writeOrder);
-        return headerList.toArray(new String[0]);
+        return headerList.toArray(ArrayUtils.EMPTY_STRING_ARRAY);
     }
 
     /**

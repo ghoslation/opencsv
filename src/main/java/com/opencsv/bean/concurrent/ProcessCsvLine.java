@@ -18,15 +18,14 @@ package com.opencsv.bean.concurrent;
 import com.opencsv.bean.BeanVerifier;
 import com.opencsv.bean.CsvToBeanFilter;
 import com.opencsv.bean.MappingStrategy;
-import com.opencsv.bean.OpencsvUtils;
+import com.opencsv.bean.exceptionhandler.CsvExceptionHandler;
+import com.opencsv.bean.util.OpencsvUtils;
+import com.opencsv.bean.util.OrderedObject;
 import com.opencsv.exceptions.*;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.ObjectUtils;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.ListIterator;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 
 /**
@@ -44,7 +43,8 @@ public class ProcessCsvLine<T> implements Runnable {
     private final String[] line;
     private final BlockingQueue<OrderedObject<T>> resultantBeanQueue;
     private final BlockingQueue<OrderedObject<CsvException>> thrownExceptionsQueue;
-    private final boolean throwExceptions;
+    private final SortedSet<Long> expectedRecords;
+    private final CsvExceptionHandler exceptionHandler;
 
     /**
      * The only constructor for creating a bean out of a line of input.
@@ -57,15 +57,18 @@ public class ProcessCsvLine<T> implements Runnable {
      * @param resultantBeanQueue A queue in which to place the bean created
      * @param thrownExceptionsQueue A queue in which to place a thrown
      *   exception, if one is thrown
-     * @param throwExceptions Whether exceptions should be thrown, ending
-     *   processing, or suppressed and saved for later processing
+     * @param expectedRecords A list of outstanding record numbers so gaps
+     *                        in ordering due to filtered input or exceptions
+     *                        while converting can be detected.
+     * @param exceptionHandler The handler for exceptions thrown during record
+     *                         processing
      */
     public ProcessCsvLine(
             long lineNumber, MappingStrategy<? extends T> mapper, CsvToBeanFilter filter,
             List<BeanVerifier<T>> verifiers, String[] line,
             BlockingQueue<OrderedObject<T>> resultantBeanQueue,
             BlockingQueue<OrderedObject<CsvException>> thrownExceptionsQueue,
-            boolean throwExceptions) {
+            SortedSet<Long> expectedRecords, CsvExceptionHandler exceptionHandler) {
         this.lineNumber = lineNumber;
         this.mapper = mapper;
         this.filter = filter;
@@ -73,7 +76,8 @@ public class ProcessCsvLine<T> implements Runnable {
         this.line = ArrayUtils.clone(line);
         this.resultantBeanQueue = resultantBeanQueue;
         this.thrownExceptionsQueue = thrownExceptionsQueue;
-        this.throwExceptions = throwExceptions;
+        this.expectedRecords = expectedRecords;
+        this.exceptionHandler = exceptionHandler;
     }
 
     @Override
@@ -91,16 +95,19 @@ public class ProcessCsvLine<T> implements Runnable {
                             resultantBeanQueue,
                             new OrderedObject<>(lineNumber, obj));
                 }
+                else {
+                    expectedRecords.remove(lineNumber);
+                }
+            }
+            else {
+                expectedRecords.remove(lineNumber);
             }
         } catch (CsvException e) {
-            e.setLineNumber(lineNumber);
+            expectedRecords.remove(lineNumber);
             e.setLine(line);
-            if (throwExceptions) {
-                throw new RuntimeException(e);
-            }
-            OpencsvUtils.queueRefuseToAcceptDefeat(thrownExceptionsQueue,
-                    new OrderedObject<>(lineNumber, e));
+            OpencsvUtils.handleException(e, lineNumber, exceptionHandler, thrownExceptionsQueue);
         } catch (Exception e) {
+            expectedRecords.remove(lineNumber);
             throw new RuntimeException(e);
         }
     }
@@ -111,20 +118,16 @@ public class ProcessCsvLine<T> implements Runnable {
      * @throws CsvBeanIntrospectionException Thrown on error creating bean.
      * @throws CsvBadConverterException If a custom converter cannot be
      *   initialized properly
-     * @throws CsvDataTypeMismatchException If the source data cannot be
-     *   converted to the type of the destination field
-     * @throws CsvRequiredFieldEmptyException If a mandatory field is empty in
-     *   the input file
-     * @throws CsvConstraintViolationException When the internal structure of
-     *   data would be violated by the data in the CSV file
-     * @throws CsvValidationException If a user-supplied validator declares the
-     *   data to be invalid
+     * @throws CsvFieldAssignmentException A more specific subclass of this
+     *   exception is thrown for any problem decoding and assigning a field
+     *   of the input to a bean field
+     * @throws CsvChainedException If multiple exceptions are thrown for the
+     * same input line
      */
     private T processLine()
             throws CsvBeanIntrospectionException,
-            CsvBadConverterException, CsvDataTypeMismatchException,
-            CsvRequiredFieldEmptyException, CsvConstraintViolationException,
-            CsvValidationException {
+            CsvBadConverterException, CsvFieldAssignmentException,
+            CsvChainedException {
         return mapper.populateNewBean(line);
     }
 }

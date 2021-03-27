@@ -26,6 +26,10 @@ public class CsvToBeanTest {
             "kyle,abc123456,123\n" +
             "jimmy,def098765,456 ";
 
+    private static final String TEST_STRING_WITH_BLANK_LINES = "name,orderNumber,num\n" +
+            "kyle,abc123456,123\n\n\n" +
+            "jimmy,def098765,456";
+
     private static final String TEST_STRING_WITHOUT_MANDATORY_FIELD = "name,orderNumber,num\n" +
             "kyle,abc123456,123\n" +
             "jimmy,def098765,";
@@ -75,22 +79,46 @@ public class CsvToBeanTest {
     public void parseBeanWithNoAnnotations() {
         HeaderColumnNameMappingStrategy<MockBean> strategy = new HeaderColumnNameMappingStrategy<>();
         strategy.setType(MockBean.class);
-        List<MockBean> beanList =new CsvToBeanBuilder<MockBean>(new StringReader(TEST_STRING))
+        List<MockBean> beanList = new CsvToBeanBuilder<MockBean>(new StringReader(TEST_STRING))
                 .withMappingStrategy(strategy)
                 .withFilter(null)
                 .build().parse(); // Extra arguments for code coverage
 
         assertEquals(2, beanList.size());
-        assertTrue(beanList.contains(createMockBean("kyle", "abc123456", 123)));
-        assertTrue(beanList.contains(createMockBean("jimmy", "def098765", 456)));
+        assertTrue(beanList.contains(new MockBean("kyle", null, "abc123456", 123, 0.0)));
+        assertTrue(beanList.contains(new MockBean("jimmy", null, "def098765", 456, 0.0)));
     }
 
-    private MockBean createMockBean(String name, String orderNumber, int num) {
-        MockBean mockBean = new MockBean();
-        mockBean.setName(name);
-        mockBean.setOrderNumber(orderNumber);
-        mockBean.setNum(num);
-        return mockBean;
+    @DisplayName("Blank lines are ignored when withIgnoreEmptyLine is set to true.")
+    @Test
+    public void parseBeanWithIgnoreEmptyLines() {
+        HeaderColumnNameMappingStrategy<MockBean> strategy = new HeaderColumnNameMappingStrategy<>();
+        strategy.setType(MockBean.class);
+        List<MockBean> beanList = new CsvToBeanBuilder<MockBean>(new StringReader(TEST_STRING_WITH_BLANK_LINES))
+                .withMappingStrategy(strategy)
+                .withIgnoreEmptyLine(true)
+                .withFilter(null)
+                .build().parse(); // Extra arguments for code coverage
+
+        assertEquals(2, beanList.size());
+        assertTrue(beanList.contains(new MockBean("kyle", null, "abc123456", 123, 0.0)));
+        assertTrue(beanList.contains(new MockBean("jimmy", null, "def098765", 456, 0.0)));
+    }
+
+    @DisplayName("Blank lines are ignored when withIgnoreEmptyLine is set to true and withFieldAsNull is set to EMPTY_SEPARATORS.")
+    @Test
+    public void parseBeanWithIgnoreEmptyLinesAndEmptyIsNull() {
+        HeaderColumnNameMappingStrategy<MockBean> strategy = new HeaderColumnNameMappingStrategy<>();
+        strategy.setType(MockBean.class);
+        List<MockBean> beanList = new CsvToBeanBuilder<MockBean>(new StringReader(TEST_STRING_WITH_BLANK_LINES))
+                .withMappingStrategy(strategy)
+                .withIgnoreEmptyLine(true)
+                .withFieldAsNull(CSVReaderNullFieldIndicator.EMPTY_SEPARATORS)
+                .build().parse();
+
+        assertEquals(2, beanList.size());
+        assertTrue(beanList.contains(new MockBean("kyle", null, "abc123456", 123, 0.0)));
+        assertTrue(beanList.contains(new MockBean("jimmy", null, "def098765", 456, 0.0)));
     }
 
     @Test
@@ -142,9 +170,7 @@ public class CsvToBeanTest {
     public void throwIllegalStateWhenOnlyReaderIsSpecifiedToParseWithoutArguments() {
         CsvToBean csvtb = new CsvToBean();
         csvtb.setCsvReader(new CSVReader(new StringReader(TEST_STRING)));
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            csvtb.parse();
-        });
+        Assertions.assertThrows(IllegalStateException.class, csvtb::parse);
     }
 
     @Test
@@ -153,9 +179,7 @@ public class CsvToBeanTest {
         HeaderColumnNameMappingStrategy<AnnotatedMockBeanFull> strat = new HeaderColumnNameMappingStrategy<>();
         strat.setType(AnnotatedMockBeanFull.class);
         csvtb.setMappingStrategy(strat);
-        Assertions.assertThrows(IllegalStateException.class, () -> {
-            csvtb.parse();
-        });
+        Assertions.assertThrows(IllegalStateException.class, csvtb::parse);
     }
 
     @Test
@@ -225,7 +249,6 @@ public class CsvToBeanTest {
         assertEquals(resultList, resultStream);
     }
 
-    @Deprecated
     private class BegToBeFiltered implements CsvToBeanFilter {
 
         @Override
@@ -276,7 +299,7 @@ public class CsvToBeanTest {
         assertEquals("\ttest string of everything!", bean.getStringClass());
         assertTrue(bean.getBoolWrapped());
         assertFalse(bean.isBoolPrimitive());
-        assertTrue(bean.getByteWrappedDefaultLocale() == 1);
+        assertEquals(1, (byte) bean.getByteWrappedDefaultLocale());
         // Nothing else really matters
     }
 

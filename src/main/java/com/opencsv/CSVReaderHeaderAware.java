@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.ResourceBundle;
-import java.util.stream.Collectors;
 
 /**
  * Handy reader when there's insufficient motivation to use the bean binding but
@@ -80,7 +79,7 @@ public class CSVReaderHeaderAware extends CSVReader {
             throw new IOException(String.format(
                     ResourceBundle.getBundle(ICSVParser.DEFAULT_BUNDLE_NAME, errorLocale)
                             .getString("header.data.mismatch.with.line.number"),
-                    getRecordsRead()));
+                    getRecordsRead(), headerIndex.size(), strings.length));
         }
 
         String[] response = new String[headerNames.length];
@@ -105,7 +104,7 @@ public class CSVReaderHeaderAware extends CSVReader {
      * Reads the next line and returns a map of header values and data values.
      *
      * @return A map whose key is the header row of the data file and the values is the data values. Or null if the line is blank.
-     * @throws IOException An error occured during the read or there is a mismatch in the number of data items in a row
+     * @throws IOException An error occurred during the read or there is a mismatch in the number of data items in a row
      *                     and the number of header items.
      * @throws CsvValidationException If a custom defined validator fails.
      */
@@ -118,11 +117,20 @@ public class CSVReaderHeaderAware extends CSVReader {
             throw new IOException(String.format(
                     ResourceBundle.getBundle(ICSVParser.DEFAULT_BUNDLE_NAME, errorLocale)
                             .getString("header.data.mismatch.with.line.number"),
-                    getRecordsRead()));
+                    getRecordsRead(), headerIndex.size(), strings.length));
         }
-        return headerIndex.entrySet().stream()
-                .filter(e -> e.getValue() < strings.length)
-                .collect(Collectors.toMap(e -> e.getKey(), e -> strings[e.getValue()]));
+
+        // This code cannot be done with a stream and Collectors.toMap()
+        // because Map.merge() does not play well with null values. Some
+        // implementations throw a NullPointerException, others simply remove
+        // the key from the map.
+        Map<String, String> resultMap = new HashMap<>(headerIndex.size()*2);
+        for(Map.Entry<String, Integer> entry : headerIndex.entrySet()) {
+            if(entry.getValue() < strings.length) {
+                resultMap.put(entry.getKey(), strings[entry.getValue()]);
+            }
+        }
+        return resultMap;
     }
 
     private void initializeHeader() throws IOException {

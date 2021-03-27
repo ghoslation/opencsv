@@ -1,12 +1,13 @@
 package com.opencsv.exceptions;
 
 /**
- * Exception thrown by a LineValidator or LineValidatorAggregator when a single line is invalid.
+ * Exception thrown by a {@link com.opencsv.validators.LineValidator} or
+ * {@link com.opencsv.validators.LineValidatorAggregator} when a single line is invalid.
  *
  * @author Scott Conway
  * @since 5.0
  */
-public class CsvValidationException extends CsvException {
+public class CsvValidationException extends CsvFieldAssignmentException {
     private static final long serialVersionUID = 1L;
 
     /**
@@ -19,7 +20,7 @@ public class CsvValidationException extends CsvException {
     /**
      * Constructor that allows for a human readable message.
      *
-     * @param message - error text.
+     * @param message Error text.
      */
     public CsvValidationException(String message) {
         super(message);

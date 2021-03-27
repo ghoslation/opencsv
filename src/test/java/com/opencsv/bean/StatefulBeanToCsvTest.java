@@ -16,9 +16,11 @@
 package com.opencsv.bean;
 
 import com.opencsv.ICSVWriter;
+import com.opencsv.TestUtils;
 import com.opencsv.bean.mocks.*;
 import com.opencsv.exceptions.CsvDataTypeMismatchException;
 import com.opencsv.exceptions.CsvException;
+import com.opencsv.exceptions.CsvFieldAssignmentException;
 import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.jupiter.api.AfterEach;
@@ -26,7 +28,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.text.ParseException;
@@ -34,7 +35,7 @@ import java.text.RuleBasedCollator;
 import java.util.*;
 import java.util.regex.Pattern;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests {@link StatefulBeanToCsv}.
@@ -43,22 +44,26 @@ import static org.junit.Assert.*;
 public class StatefulBeanToCsvTest {
     
     private static Locale systemLocale;
+
+    // If alternatives in these regular expressions are always related to different
+    // handling of the same locale in different Java versions. There was a break from
+    // Java 8 to Java 9, and another from Java 12 to Java 13.
     private static final String EXTRA_STRING_FOR_WRITING = "extrastringforwritinghowcreative";
-    private static final String GOOD_DATA_1 = "test string;value: true;false;1;2;3;4;123,101.101;123.202,202;123303.303;123\u00A0404,404;123101.1;1.000,2;2000.3;3.000,4;5000;6.000;2147476647;8.000;9000;10.000;11000;12.000;13000;14.000;15000;16.000;a;b;123101.101;123.102,102;101;102;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dez\\.? 2018;19780115T063209;19780115T063209;1.01;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;";
-    private static final String GOOD_DATA_2 = "test string;;false;1;2;3;4;123,101.101;123.202,202;123303.303;123\u00A0404,404;123101.1;1.000,2;2000.3;3.000,4;5000;6.000;2147476647;8.000;9000;10.000;11000;12.000;13000;14.000;15000;16.000;a;b;123101.101;123.102,102;101;102;19780115T063209;19780115T163209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dez\\.? 2018;19780115T063209;19780115T063209;2.02;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;";
-    private static final String GOOD_DATA_OPTIONALS_NULL = "test string;value: true;false;1;2;3;4;123,101.101;123.202,202;123303.303;123\u00A0404,404;;1.000,2;2000.3;3.000,4;5000;6.000;2147476647;8.000;9000;10.000;11000;12.000;13000;14.000;15000;16.000;a;b;123101.101;123.102,102;101;102;19780115T063209;19780115T063209;;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dez\\.? 2018;19780115T063209;19780115T063209;1.01;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;";
+    private static final String GOOD_DATA_1 = "test string;value: true;false;1;2;3;4;123,101.101;123.202,202;123303.303;123(\u00A0|\u202F)404,404;123101.1;1.000,2;2000.3;3.000,4;5000;6.000;2147476647;8.000;9000;10.000;11000;12.000;13000;14.000;15000;16.000;a;b;123101.101;123.102,102;101;102;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dezember 2018;19780115T063209;19780115T063209;1.01;TEST1;EUR;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;";
+    private static final String GOOD_DATA_2 = "test string;;false;1;2;3;4;123,101.101;123.202,202;123303.303;123(\u00A0|\u202F)404,404;123101.1;1.000,2;2000.3;3.000,4;5000;6.000;2147476647;8.000;9000;10.000;11000;12.000;13000;14.000;15000;16.000;a;b;123101.101;123.102,102;101;102;19780115T063209;19780115T163209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dezember 2018;19780115T063209;19780115T063209;2.02;Test2;CHF;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;";
+    private static final String GOOD_DATA_OPTIONALS_NULL = "test string;value: true;false;1;2;3;4;123,101.101;123.202,202;123303.303;123(\u00A0|\u202F)404,404;;1.000,2;2000.3;3.000,4;5000;6.000;2147476647;8.000;9000;10.000;11000;12.000;13000;14.000;15000;16.000;a;b;123101.101;123.102,102;101;102;19780115T063209;19780115T063209;;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dezember 2018;19780115T063209;19780115T063209;1.01;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;";
     private static final String GOOD_DATA_CUSTOM_1 = "inside custom converter;wahr;falsch;127;127;127;;1.7976931348623157E308;1.7976931348623157E308;1.7976931348623157E308;1.7976931348623157E308;3.4028235E38;3.4028235E38;3.4028235E38;3.4028235E38;2147483647;2147483647;2147483647;2147483647;9223372036854775807;9223372036854775807;9223372036854775807;9223372036854775807;32767;32767;32767;32767;\uFFFF;\uFFFF;10;10;10;10;;;;;;;;;;;;;falsch;wahr;really long test string, yeah!;1.a.long,long.string1;2147483645.z.Inserted in setter methodlong,long.string2;3.c.long,long.derived.string3;inside custom converter";
-    private static final String HEADER_NAME_FULL = "BIGDECIMAL1;BIGDECIMAL2;BIGINTEGER1;BIGINTEGER2;BOOL1;BOOLPRIMITIVE;BYTE1;BYTE2;BYTE3;BYTE4;CHAR1;CHAR2;DATE1;DATE10;DATE11;DATE12;DATE13;DATE14;DATE15;DATE16;DATE2;DATE3;DATE4;DATE5;DATE6;DATE7;DATE8;DATE9;DOUBLE1;DOUBLE2;DOUBLE3;DOUBLE4;FLOAT1;FLOAT2;FLOAT3;FLOAT4;FLOAT5;INTEGER1;INTEGER2;INTEGER3;INTEGER4;ITNOGOODCOLUMNITVERYBAD;LONG1;LONG2;LONG3;LONG4;SHORT1;SHORT2;SHORT3;SHORT4;STRING1";
-    private static final String GOOD_DATA_NAME_1 = "123101.101;123.102,102;101;102;value: true;false;1;2;3;4;a;b;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dez\\.? 2018;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;123,101.101;123.202,202;123303.303;123\u00A0404,404;123101.1;1.000,2;2000.3;3.000,4;1.01;5000;6.000;2147476647;8.000;;9000;10.000;11000;12.000;13000;14.000;15000;16.000;test string";
+    private static final String HEADER_NAME_FULL = "BIGDECIMAL1;BIGDECIMAL2;BIGINTEGER1;BIGINTEGER2;BOOL1;BOOLPRIMITIVE;BYTE1;BYTE2;BYTE3;BYTE4;CHAR1;CHAR2;CURRENCY1;DATE1;DATE10;DATE11;DATE12;DATE13;DATE14;DATE15;DATE16;DATE2;DATE3;DATE4;DATE5;DATE6;DATE7;DATE8;DATE9;DOUBLE1;DOUBLE2;DOUBLE3;DOUBLE4;ENUM1;FLOAT1;FLOAT2;FLOAT3;FLOAT4;FLOAT5;INTEGER1;INTEGER2;INTEGER3;INTEGER4;ITNOGOODCOLUMNITVERYBAD;LONG1;LONG2;LONG3;LONG4;SHORT1;SHORT2;SHORT3;SHORT4;STRING1";
+    private static final String GOOD_DATA_NAME_1 = "123101.101;123.102,102;101;102;value: true;false;1;2;3;4;a;b;EUR;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dezember 2018;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;123,101.101;123.202,202;123303.303;123(\u00A0|\u202F)404,404;TEST1;123101.1;1.000,2;2000.3;3.000,4;1.01;5000;6.000;2147476647;8.000;;9000;10.000;11000;12.000;13000;14.000;15000;16.000;test string";
     private static final String HEADER_NAME_FULL_CUSTOM = "BIGDECIMAL1;BIGDECIMAL2;BIGINTEGER1;BIGINTEGER2;BOOL1;BOOL2;BOOL3;BOOLPRIMITIVE;BYTE1;BYTE2;BYTE3;CHAR1;CHAR2;COMPLEX1;COMPLEX2;COMPLEX3;DOUBLE1;DOUBLE2;DOUBLE3;DOUBLE4;FLOAT1;FLOAT2;FLOAT3;FLOAT4;INTEGER1;INTEGER2;INTEGER3;INTEGER4;LONG1;LONG2;LONG3;LONG4;REQUIREDWITHCUSTOM;SHORT1;SHORT2;SHORT3;SHORT4;STRING1;STRING2";
     private static final String GOOD_DATA_NAME_CUSTOM_1 = "10;10;10;10;wahr;falsch;wahr;falsch;127;127;127;\uFFFF;\uFFFF;1.a.long,long.string1;2147483645.z.Inserted in setter methodlong,long.string2;3.c.long,long.derived.string3;1.7976931348623157E308;1.7976931348623157E308;1.7976931348623157E308;1.7976931348623157E308;3.4028235E38;3.4028235E38;3.4028235E38;3.4028235E38;2147483647;2147483647;2147483647;2147483647;9223372036854775807;9223372036854775807;9223372036854775807;9223372036854775807;inside custom converter;32767;32767;32767;32767;inside custom converter;really long test string, yeah!";
     private static final String GOOD_DATA_NAME_CUSTOM_2 = "10;10;10;10;wahr;falsch;wahr;falsch;127;127;127;\uFFFF;\uFFFF;4.d.long,long.string4;2147483642.z.Inserted in setter methodlong,long.derived.string5;6.f.long,long.string6;1.7976931348623157E308;1.7976931348623157E308;1.7976931348623157E308;1.7976931348623157E308;3.4028235E38;3.4028235E38;3.4028235E38;3.4028235E38;2147483647;2147483647;2147483647;2147483647;9223372036854775807;9223372036854775807;9223372036854775807;9223372036854775807;inside custom converter;32767;32767;32767;32767;inside custom converter;really";
-    private static final String HEADER_NAME_FULL_DERIVED = "BIGDECIMAL1;BIGDECIMAL2;BIGINTEGER1;BIGINTEGER2;BOOL1;BOOLPRIMITIVE;BYTE1;BYTE2;BYTE3;BYTE4;CHAR1;CHAR2;DATE1;DATE10;DATE11;DATE12;DATE13;DATE14;DATE15;DATE16;DATE2;DATE3;DATE4;DATE5;DATE6;DATE7;DATE8;DATE9;DOUBLE1;DOUBLE2;DOUBLE3;DOUBLE4;FLOAT1;FLOAT2;FLOAT3;FLOAT4;FLOAT5;INT IN SUBCLASS;INTEGER1;INTEGER2;INTEGER3;INTEGER4;ITNOGOODCOLUMNITVERYBAD;LONG1;LONG2;LONG3;LONG4;SHORT1;SHORT2;SHORT3;SHORT4;STRING1";
-    private static final String GOOD_DATA_NAME_DERIVED_1 = "123101.101;123.102,102;101;102;value: true;false;1;2;3;4;a;b;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dez\\.? 2018;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;123,101.101;123.202,202;123303.303;123\u00A0404,404;123101.1;123.202,203;123303.305;123.404,406;1.01;7;5000;6.000;2147476647;8.000;;9000;10.000;11000;12.000;13000;14.000;15000;16.000;test string";
-    private static final String GOOD_DATA_NAME_DERIVED_SUB_1 = "123101.101;123.102,102;101;102;value: true;false;1;2;3;4;a;b;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dez\\.? 2018;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;123,101.101;123.202,202;123303.303;123\u00A0404,404;123101.1;123.202,203;123303.305;123.404,406;1.01;5000;6.000;2147476647;8.000;;9000;10.000;11000;12.000;13000;14.000;15000;16.000;test string";
-    private static final String REVERSE_GOOD_DATA_1 = ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1.01;19780115T063209;19780115T063209;13. Dez\\.? 2018;01/15/1978;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;102;101;123.102,102;123101.101;b;a;16.000;15000;14.000;13000;12.000;11000;10.000;9000;8.000;2147476647;6.000;5000;3.000,4;2000.3;1.000,2;123101.1;123\u00A0404,404;123303.303;123.202,202;123,101.101;4;3;2;1;false;value: true;test string";
-    private static final String COLLATED_HEADER_NAME_FULL = "SHORT1;SHORT2;SHORT3;SHORT4;STRING1;BIGDECIMAL1;BIGDECIMAL2;BIGINTEGER1;BIGINTEGER2;BOOLPRIMITIVE;BOOL1;BYTE1;BYTE2;BYTE3;BYTE4;CHAR1;CHAR2;DATE1;DATE10;DATE11;DATE12;DATE13;DATE14;DATE15;DATE16;DATE2;DATE3;DATE4;DATE5;DATE6;DATE7;DATE8;DATE9;DOUBLE1;DOUBLE2;DOUBLE3;DOUBLE4;FLOAT1;FLOAT2;FLOAT3;FLOAT4;FLOAT5;INTEGER1;INTEGER2;INTEGER3;INTEGER4;ITNOGOODCOLUMNITVERYBAD;LONG1;LONG2;LONG3;LONG4";
-    private static final String COLLATED_GOOD_DATA_NAME_1 = "13000;14.000;15000;16.000;test string;123101.101;123.102,102;101;102;false;value: true;1;2;3;4;a;b;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dez\\.? 2018;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;123,101.101;123.202,202;123303.303;123\u00A0404,404;123101.1;1.000,2;2000.3;3.000,4;1.01;5000;6.000;2147476647;8.000;;9000;10.000;11000;12.000";
+    private static final String HEADER_NAME_FULL_DERIVED = "BIGDECIMAL1;BIGDECIMAL2;BIGINTEGER1;BIGINTEGER2;BOOL1;BOOLPRIMITIVE;BYTE1;BYTE2;BYTE3;BYTE4;CHAR1;CHAR2;CURRENCY1;DATE1;DATE10;DATE11;DATE12;DATE13;DATE14;DATE15;DATE16;DATE2;DATE3;DATE4;DATE5;DATE6;DATE7;DATE8;DATE9;DOUBLE1;DOUBLE2;DOUBLE3;DOUBLE4;ENUM1;FLOAT1;FLOAT2;FLOAT3;FLOAT4;FLOAT5;INT IN SUBCLASS;INTEGER1;INTEGER2;INTEGER3;INTEGER4;ITNOGOODCOLUMNITVERYBAD;LONG1;LONG2;LONG3;LONG4;SHORT1;SHORT2;SHORT3;SHORT4;STRING1";
+    private static final String GOOD_DATA_NAME_DERIVED_1 = "123101.101;123.102,102;101;102;value: true;false;1;2;3;4;a;b;EUR;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dezember 2018;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;123,101.101;123.202,202;123303.303;123(\u00A0|\u202F)404,404;TEST1;123101.1;123.202,203;123303.305;123.404,406;1.01;7;5000;6.000;2147476647;8.000;;9000;10.000;11000;12.000;13000;14.000;15000;16.000;test string";
+    private static final String GOOD_DATA_NAME_DERIVED_SUB_1 = "123101.101;123.102,102;101;102;value: true;false;1;2;3;4;a;b;EUR;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dezember 2018;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;123,101.101;123.202,202;123303.303;123(\u00A0|\u202F)404,404;TEST1;123101.1;123.202,203;123303.305;123.404,406;1.01;5000;6.000;2147476647;8.000;;9000;10.000;11000;12.000;13000;14.000;15000;16.000;test string";
+    private static final String REVERSE_GOOD_DATA_1 = ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;EUR;TEST1;1.01;19780115T063209;19780115T063209;13. Dezember 2018;01/15/1978;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;102;101;123.102,102;123101.101;b;a;16.000;15000;14.000;13000;12.000;11000;10.000;9000;8.000;2147476647;6.000;5000;3.000,4;2000.3;1.000,2;123101.1;123(\u00A0|\u202F)404,404;123303.303;123.202,202;123,101.101;4;3;2;1;false;value: true;test string";
+    private static final String COLLATED_HEADER_NAME_FULL = "SHORT1;SHORT2;SHORT3;SHORT4;STRING1;BIGDECIMAL1;BIGDECIMAL2;BIGINTEGER1;BIGINTEGER2;BOOLPRIMITIVE;BOOL1;BYTE1;BYTE2;BYTE3;BYTE4;CHAR1;CHAR2;CURRENCY1;DATE1;DATE10;DATE11;DATE12;DATE13;DATE14;DATE15;DATE16;DATE2;DATE3;DATE4;DATE5;DATE6;DATE7;DATE8;DATE9;DOUBLE1;DOUBLE2;DOUBLE3;DOUBLE4;ENUM1;FLOAT1;FLOAT2;FLOAT3;FLOAT4;FLOAT5;INTEGER1;INTEGER2;INTEGER3;INTEGER4;ITNOGOODCOLUMNITVERYBAD;LONG1;LONG2;LONG3;LONG4";
+    private static final String COLLATED_GOOD_DATA_NAME_1 = "13000;14.000;15000;16.000;test string;123101.101;123.102,102;101;102;false;value: true;1;2;3;4;a;b;EUR;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13. Dezember 2018;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;123,101.101;123.202,202;123303.303;123(\u00A0|\u202F)404,404;TEST1;123101.1;1.000,2;2000.3;3.000,4;1.01;5000;6.000;2147476647;8.000;;9000;10.000;11000;12.000";
 
     @BeforeAll
     public static void storeSystemLocale() {
@@ -75,36 +80,6 @@ public class StatefulBeanToCsvTest {
         Locale.setDefault(systemLocale);
     }
 
-    private ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> createTwoGoodBeans()
-            throws IOException {
-        List<AnnotatedMockBeanFull> beans = new CsvToBeanBuilder<AnnotatedMockBeanFull>(
-                new FileReader("src/test/resources/testinputwriteposfullgood.csv"))
-                .withType(AnnotatedMockBeanFull.class).withSeparator(';').build().parse();
-        return new ImmutablePair<>(beans.get(0), beans.get(1));
-    }
-    
-    private ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> createTwoGoodCustomBeans()
-            throws IOException {
-        List<AnnotatedMockBeanCustom> beans = new CsvToBeanBuilder<AnnotatedMockBeanCustom>(
-                new FileReader("src/test/resources/testinputwritecustomposfullgood.csv"))
-                .withType(AnnotatedMockBeanCustom.class).withSeparator(';').build().parse();
-        return new ImmutablePair<>(beans.get(0), beans.get(1));
-    }
-    
-    private ImmutablePair<AnnotatedMockBeanFullDerived, AnnotatedMockBeanFullDerived> createTwoGoodDerivedBeans()
-            throws IOException {
-        HeaderColumnNameMappingStrategy<AnnotatedMockBeanFullDerived> strat = new HeaderColumnNameMappingStrategy<>();
-        strat.setType(AnnotatedMockBeanFullDerived.class);
-        List<AnnotatedMockBeanFullDerived> beans = new CsvToBeanBuilder<AnnotatedMockBeanFullDerived>(
-                new FileReader("src/test/resources/testinputderivedgood.csv"))
-                .withType(AnnotatedMockBeanFullDerived.class)
-                .withSeparator(';')
-                .withMappingStrategy(strat)
-                .build()
-                .parse();
-        return new ImmutablePair<>(beans.get(0), beans.get(1));
-    }
-    
     /**
      * Test of writing a single bean.
      * This also incidentally covers the following conditions because of the
@@ -125,7 +100,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeSingleBeanNoQuotes() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanFull> btcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanFull>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -146,7 +121,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeSingleOptionallyQuotedBean() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanFull> btcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanFull>(writer)
                 .withSeparator(';')
@@ -155,13 +130,13 @@ public class StatefulBeanToCsvTest {
         btcsv.write(beans.left);
         String output = writer.toString();
         assertTrue(Pattern.matches(
-                "\"Quoted \"\"air quotes\"\" string\";\"value: true\";\"false\";\"1\";\"2\";\"3\";\"4\";\"123,101\\.101\";\"123\\.202,202\";\"123303\\.303\";\"123\u00A0404,404\";\"123101\\.1\";\"1\\.000,2\";\"2000\\.3\";\"3\\.000,4\";\"5000\";\"6\\.000\";\"2147476647\";\"8\\.000\";\"9000\";\"10\\.000\";\"11000\";\"12\\.000\";\"13000\";\"14\\.000\";\"15000\";\"16\\.000\";\"a\";\"b\";\"123101\\.101\";\"123\\.102,102\";\"101\";\"102\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"01/15/1978\";\"13\\. Dez\\.? 2018\";\"19780115T063209\";\"19780115T063209\";\"1\\.01\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\"\n",
+                "\"Quoted \"\"air quotes\"\" string\";\"value: true\";\"false\";\"1\";\"2\";\"3\";\"4\";\"123,101\\.101\";\"123\\.202,202\";\"123303\\.303\";\"123(\u00A0|\u202F)404,404\";\"123101\\.1\";\"1\\.000,2\";\"2000\\.3\";\"3\\.000,4\";\"5000\";\"6\\.000\";\"2147476647\";\"8\\.000\";\"9000\";\"10\\.000\";\"11000\";\"12\\.000\";\"13000\";\"14\\.000\";\"15000\";\"16\\.000\";\"a\";\"b\";\"123101\\.101\";\"123\\.102,102\";\"101\";\"102\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"19780115T063209\";\"01/15/1978\";\"13\\. Dezember 2018\";\"19780115T063209\";\"19780115T063209\";\"1\\.01\";\"TEST1\";\"EUR\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\"\n",
                 output));
     }
 
     @Test
     public void writeSingleQuotedBean() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanFull> btcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanFull>(writer)
                 .withApplyQuotesToAll(false)
@@ -170,7 +145,7 @@ public class StatefulBeanToCsvTest {
         beans.left.setStringClass("Quoted \"air quotes\" string");
         btcsv.write(beans.left);
         assertTrue(Pattern.matches(
-                "\"Quoted \"\"air quotes\"\" string\";value: true;false;1;2;3;4;123,101\\.101;123\\.202,202;123303\\.303;123\u00A0404,404;123101\\.1;1\\.000,2;2000\\.3;3\\.000,4;5000;6\\.000;2147476647;8\\.000;9000;10\\.000;11000;12\\.000;13000;14\\.000;15000;16\\.000;a;b;123101\\.101;123\\.102,102;101;102;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13\\. Dez\\.? 2018;19780115T063209;19780115T063209;1\\.01;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n",
+                "\"Quoted \"\"air quotes\"\" string\";value: true;false;1;2;3;4;123,101\\.101;123\\.202,202;123303\\.303;123(\u00A0|\u202F)404,404;123101\\.1;1\\.000,2;2000\\.3;3\\.000,4;5000;6\\.000;2147476647;8\\.000;9000;10\\.000;11000;12\\.000;13000;14\\.000;15000;16\\.000;a;b;123101\\.101;123\\.102,102;101;102;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;19780115T063209;01/15/1978;13\\. Dezember 2018;19780115T063209;19780115T063209;1\\.01;TEST1;EUR;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n",
                 writer.toString()));
     }
 
@@ -184,7 +159,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeMultipleBeansOrdered() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         List<AnnotatedMockBeanFull> beanList = new ArrayList<>();
         beanList.add(beans.left); beanList.add(beans.right);
         StringWriter writer = new StringWriter();
@@ -204,7 +179,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeMultipleBeansOrderedWithIterator() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         List<AnnotatedMockBeanFull> beanList = new ArrayList<>();
         beanList.add(beans.left);
         beanList.add(beans.right);
@@ -225,7 +200,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeMultipleBeansOrderedFromStream() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         List<AnnotatedMockBeanFull> beanList = new ArrayList<>();
         beanList.add(beans.left);
         beanList.add(beans.right);
@@ -246,7 +221,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeMultipleBeansUnordered() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         List<AnnotatedMockBeanFull> beanList = new ArrayList<>();
         beanList.add(beans.left); beanList.add(beans.right);
         StringWriter writer = new StringWriter();
@@ -268,7 +243,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeMultipleBeansUnorderedWithIterator() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         List<AnnotatedMockBeanFull> beanList = new ArrayList<>();
         beanList.add(beans.left);
         beanList.add(beans.right);
@@ -291,7 +266,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeMixedSingleMultipleBeans() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         List<AnnotatedMockBeanFull> beanList = new ArrayList<>();
         beanList.add(beans.left); beanList.add(beans.right);
         StringWriter writer = new StringWriter();
@@ -313,7 +288,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeMixedSingleMultipleBeansWithIterator() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         List<AnnotatedMockBeanFull> beanList = new ArrayList<>();
         beanList.add(beans.left);
         beanList.add(beans.right);
@@ -338,9 +313,11 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeOptionalFieldsWithNull() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         beans.left.setFloatWrappedDefaultLocale(null);
         beans.left.setCalDefaultLocale(null);
+        beans.left.setTestEnum(null);
+        beans.left.setTestCurrency(null);
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanFull> btcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanFull>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -359,7 +336,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeOptionalNonContiguousField() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         beans.left.setColumnDoesntExist(EXTRA_STRING_FOR_WRITING);
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanFull> btcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanFull>(writer)
@@ -381,7 +358,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeSpecifiedStrategy() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         HeaderColumnNameMappingStrategy<AnnotatedMockBeanFull> strat = new HeaderColumnNameMappingStrategy<>();
         strat.setType(AnnotatedMockBeanFull.class);
@@ -453,7 +430,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeDerivedSubclass() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFullDerived, AnnotatedMockBeanFullDerived> derivedList = createTwoGoodDerivedBeans();
+        ImmutablePair<AnnotatedMockBeanFullDerived, AnnotatedMockBeanFullDerived> derivedList = TestUtils.createTwoGoodDerivedBeans();
         StringWriter writer = new StringWriter();
         HeaderColumnNameMappingStrategy<AnnotatedMockBeanFullDerived> strat = new HeaderColumnNameMappingStrategy<>();
         strat.setType(AnnotatedMockBeanFullDerived.class);
@@ -474,7 +451,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeDerivedSuperclass() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFullDerived, AnnotatedMockBeanFullDerived> derivedList = createTwoGoodDerivedBeans();
+        ImmutablePair<AnnotatedMockBeanFullDerived, AnnotatedMockBeanFullDerived> derivedList = TestUtils.createTwoGoodDerivedBeans();
         StringWriter writer = new StringWriter();
         HeaderColumnNameMappingStrategy<AnnotatedMockBeanFull> strat = new HeaderColumnNameMappingStrategy<>();
         strat.setType(AnnotatedMockBeanFull.class);
@@ -529,7 +506,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeNullRequiredWrappedPrimitive() throws IOException, CsvException, NoSuchFieldException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanFull> sbtcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanFull>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -557,7 +534,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeNullRequiredCustom() throws IOException, CsvException, NoSuchFieldException {
-        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = createTwoGoodCustomBeans();
+        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = TestUtils.createTwoGoodCustomBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanCustom> sbtcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanCustom>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -586,13 +563,12 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeManyFirstBeanIsBad() throws IOException, CsvException, NoSuchFieldException {
-        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = createTwoGoodCustomBeans();
+        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = TestUtils.createTwoGoodCustomBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanCustom> sbtcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanCustom>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
                 .withThrowExceptions(true)
                 .build();
-        assertTrue(sbtcsv.isThrowExceptions());
         beans.left.setRequiredWithCustom(null); // required
         List<AnnotatedMockBeanCustom> beanList = new ArrayList<>(1000);
         beanList.add(beans.left);
@@ -617,13 +593,12 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeManyWithIteratorFirstBeanIsBad() throws IOException, CsvException, NoSuchFieldException {
-        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = createTwoGoodCustomBeans();
+        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = TestUtils.createTwoGoodCustomBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanCustom> sbtcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanCustom>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
                 .withThrowExceptions(true)
                 .build();
-        assertTrue(sbtcsv.isThrowExceptions());
         beans.left.setRequiredWithCustom(null); // required
         List<AnnotatedMockBeanCustom> beanList = new ArrayList<>(1000);
         beanList.add(beans.left);
@@ -649,7 +624,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeBadBeanUnorderedCaptureExceptions() throws IOException, CsvException, NoSuchFieldException {
-        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = createTwoGoodCustomBeans();
+        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = TestUtils.createTwoGoodCustomBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanCustom> sbtcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanCustom>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -683,7 +658,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeWithIteratorBadBeanUnorderedCaptureExceptions() throws IOException, CsvException, NoSuchFieldException {
-        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = createTwoGoodCustomBeans();
+        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = TestUtils.createTwoGoodCustomBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanCustom> sbtcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanCustom>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -718,7 +693,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeNullRequiredDate() throws IOException, CsvException, NoSuchFieldException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         beans.right.setDateDefaultLocale(null); // required
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanFull> sbtcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanFull>(writer)
@@ -743,11 +718,10 @@ public class StatefulBeanToCsvTest {
      * Reading captured exceptions twice in a row.
      * @throws IOException Never
      * @throws CsvException Never
-     * @throws NoSuchFieldException Never
      */
     @Test
     public void readCapturedExceptionsIsDestructive() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         beans.left.setByteWrappedSetLocale(null); // required
         beans.right.setDateDefaultLocale(null); // required
         StringWriter writer = new StringWriter();
@@ -769,7 +743,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void multipleWritesCapturedExceptions() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         beans.left.setByteWrappedSetLocale(null); // required
         beans.right.setDateDefaultLocale(null); // required
         StringWriter writer = new StringWriter();
@@ -842,7 +816,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeCustomByPosition() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = createTwoGoodCustomBeans();
+        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = TestUtils.createTwoGoodCustomBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanCustom> btcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanCustom>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -862,7 +836,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeCustomByName() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = createTwoGoodCustomBeans();
+        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = TestUtils.createTwoGoodCustomBeans();
         StringWriter writer = new StringWriter();
         HeaderColumnNameMappingStrategy<AnnotatedMockBeanCustom> strat = new HeaderColumnNameMappingStrategy<>();
         strat.setType(AnnotatedMockBeanCustom.class);
@@ -887,7 +861,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeCustomByNameWithIterator() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = createTwoGoodCustomBeans();
+        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = TestUtils.createTwoGoodCustomBeans();
         StringWriter writer = new StringWriter();
         HeaderColumnNameMappingStrategy<AnnotatedMockBeanCustom> strat = new HeaderColumnNameMappingStrategy<>();
         strat.setType(AnnotatedMockBeanCustom.class);
@@ -913,7 +887,7 @@ public class StatefulBeanToCsvTest {
      */
     @Test
     public void writeEmptyFieldWithConvertGermanToBooleanRequired() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = createTwoGoodCustomBeans();
+        ImmutablePair<AnnotatedMockBeanCustom, AnnotatedMockBeanCustom> beans = TestUtils.createTwoGoodCustomBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanCustom> btcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanCustom>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -937,7 +911,7 @@ public class StatefulBeanToCsvTest {
         strat.setType(AnnotatedMockBeanFull.class);
         strat.setColumnMapping();
         strat.setColumnOrderOnWrite(Comparator.reverseOrder());
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanFull> btcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanFull>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -953,7 +927,7 @@ public class StatefulBeanToCsvTest {
         ColumnPositionMappingStrategy<AnnotatedMockBeanFull> strat = new ColumnPositionMappingStrategy<>();
         strat.setColumnOrderOnWrite(Comparator.reverseOrder());
         strat.setType(AnnotatedMockBeanFull.class);
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanFull> btcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanFull>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -969,7 +943,7 @@ public class StatefulBeanToCsvTest {
         ColumnPositionMappingStrategy<AnnotatedMockBeanFull> strat = new ColumnPositionMappingStrategy<>();
         strat.setColumnOrderOnWrite(null);
         strat.setType(AnnotatedMockBeanFull.class);
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         StatefulBeanToCsv<AnnotatedMockBeanFull> btcsv = new StatefulBeanToCsvBuilder<AnnotatedMockBeanFull>(writer)
                 .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
@@ -982,7 +956,7 @@ public class StatefulBeanToCsvTest {
 
     @Test
     public void writeDifferentOrderNameTypeFirst() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         HeaderColumnNameMappingStrategy<AnnotatedMockBeanFull> strat = new HeaderColumnNameMappingStrategy<>();
         strat.setType(AnnotatedMockBeanFull.class);
@@ -998,7 +972,7 @@ public class StatefulBeanToCsvTest {
 
     @Test
     public void writeDifferentOrderNameTypeLast() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         HeaderColumnNameMappingStrategy<AnnotatedMockBeanFull> strat = new HeaderColumnNameMappingStrategy<>();
         strat.setColumnOrderOnWrite(new SFirstCollator());
@@ -1014,7 +988,7 @@ public class StatefulBeanToCsvTest {
 
     @Test
     public void writeNullOrderName() throws IOException, CsvException {
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> beans = TestUtils.createTwoGoodBeans();
         StringWriter writer = new StringWriter();
         HeaderColumnNameMappingStrategy<AnnotatedMockBeanFull> strat = new HeaderColumnNameMappingStrategy<>();
         strat.setColumnOrderOnWrite(null);
@@ -1028,7 +1002,63 @@ public class StatefulBeanToCsvTest {
         assertTrue(Pattern.matches(HEADER_NAME_FULL + "\n" + GOOD_DATA_NAME_1 + "\n", writer.toString()));
     }
 
-    private class SFirstCollator implements Comparator<String> {
+    @Test
+    public void writeMultipleExceptionsPerBean() throws CsvFieldAssignmentException {
+        StringWriter writer = new StringWriter();
+        HeaderColumnNameMappingStrategy<WriteLocale> strat = new HeaderColumnNameMappingStrategy<>();
+        strat.setColumnOrderOnWrite(null);
+        strat.setType(WriteLocale.class);
+        StatefulBeanToCsv<WriteLocale> btcsv = new StatefulBeanToCsvBuilder<WriteLocale>(writer)
+                .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
+                .withSeparator(';')
+                .withMappingStrategy(strat)
+                .withThrowExceptions(false)
+                .build();
+
+        // Broken beans. Each has multiple required fields.
+        List<WriteLocale> beans = Arrays.asList(new WriteLocale(), new WriteLocale(), new WriteLocale());
+        btcsv.write(beans);
+        final int errorsPerLine = 4;
+        final int totalLines = 3;
+        List<CsvException> thrownExceptions = btcsv.getCapturedExceptions();
+        assertNotNull(thrownExceptions);
+        assertEquals(errorsPerLine*totalLines, thrownExceptions.size());
+        for(int line = 0; line < totalLines ; line++) {
+            for(int mistake = 0; mistake < errorsPerLine; mistake++) {
+                CsvException e = thrownExceptions.get(line*errorsPerLine+mistake);
+                assertTrue(e instanceof CsvRequiredFieldEmptyException);
+                assertEquals(line+1, e.getLineNumber());
+            }
+        }
+    }
+
+    @Test
+    public void writeMultipleExceptionsOneBean() throws CsvFieldAssignmentException {
+        StringWriter writer = new StringWriter();
+        HeaderColumnNameMappingStrategy<WriteLocale> strat = new HeaderColumnNameMappingStrategy<>();
+        strat.setColumnOrderOnWrite(null);
+        strat.setType(WriteLocale.class);
+        StatefulBeanToCsv<WriteLocale> btcsv = new StatefulBeanToCsvBuilder<WriteLocale>(writer)
+                .withQuotechar(ICSVWriter.NO_QUOTE_CHARACTER)
+                .withSeparator(';')
+                .withMappingStrategy(strat)
+                .withThrowExceptions(false)
+                .build();
+
+        // Broken beans. Each has multiple required fields.
+        btcsv.write(new WriteLocale());
+        List<CsvException> thrownExceptions = btcsv.getCapturedExceptions();
+        assertNotNull(thrownExceptions);
+        final int errorsPerLine = 4;
+        assertEquals(errorsPerLine, thrownExceptions.size());
+        for(int mistake = 0; mistake < errorsPerLine; mistake++) {
+            CsvException e = thrownExceptions.get(mistake);
+            assertTrue(e instanceof CsvRequiredFieldEmptyException);
+            assertEquals(1, e.getLineNumber());
+        }
+    }
+
+    private static class SFirstCollator implements Comparator<String> {
         private final Comparator<Object> c;
 
         public SFirstCollator() {

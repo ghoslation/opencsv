@@ -29,7 +29,7 @@ public class CsvConstraintViolationExceptionTest {
     
     @Test
     public void codeCoverageConstructors() throws NoSuchFieldException {
-        Class c = TestCase80.class;
+        Class<TestCase80> c = TestCase80.class;
         Field f = c.getField("test");
         
         CsvConstraintViolationException e4 = new CsvConstraintViolationException();

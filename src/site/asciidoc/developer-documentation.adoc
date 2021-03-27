@@ -132,27 +132,38 @@ do about them.
    accordingly, if you overrode any of the affected methods, and you will need
    to implement loadUnadornedFieldMap() to create the input/output to member
    variable mapping in the absence of binding annotations.
-   * The two constructors for StatefulBeanToCsv have a new parameter: the
-   fields to ignore. If you are calling these directly instead of using the
-   builders we provide, you will have to add the last argument. If you are
-   not ignoring any fields, simply pass in null.
+* The two constructors for StatefulBeanToCsv have a new parameter: the fields to ignore.
+If you are calling these directly instead of using the builders we provide, you will have to add the last argument.
+If you are not ignoring any fields, simply pass in null.
 
-And we have a new list of things that we have deprecated and plan to remove in
-6.0, as well as what you can do about it.
+And we have a new list of things that we have deprecated and plan to remove in 6.0, as well as what you can do about it.
 
-   * MappingStrategy.isAnnotationDriven() is simply no longer necessary. It was always an internal implementation detail that has nothing to do with anything but two specific mapping strategies. We have made it a default method in the interface, so you can remove your code immediately if you have implemented your own mapping strategy.
-   * LiteralComparator can be replaced by a few Comparators from Apache Commons Collections strung together. See the deprecation note for details.
-   * CsvToBeanFilter should be replaced with BeanVerifier.
+* MappingStrategy.isAnnotationDriven() is simply no longer necessary.
+It was always an internal implementation detail that has nothing to do with anything but two specific mapping strategies.
+We have made it a default method in the interface, so you can remove your code immediately if you have implemented your own mapping strategy.
+* LiteralComparator can be replaced by a few Comparators from Apache Commons Collections strung together.
+See the deprecation note for details.
+* CsvToBeanFilter should be replaced with BeanVerifier where possible.
 
 === Upgrading from 3.x to 4.x
 
-4.0 is a major release because it breaks backward compatibility. What do you get
-for that? Here is a list of the improvements in opencsv 4.0.
+4.0 is a major release because it breaks backward compatibility.
+What do you get for that?
+Here is a list of the improvements in opencsv 4.0.
 
-   * We have rewritten the bean code to be multi-threaded so that reading from an input directly into beans is significantly faster. Performance benefits depend largely on your data and hardware, but our non-rigorous tests indicate that reading now takes a <em>third</em> of the time it used to.
-   * We have rewritten the bean code to be multi-threaded so that writing from a list of beans is significantly faster. Performance benefits depend largely on your data and hardware, but our non-rigorous tests indicate that writing now takes <em>half</em> of the time it used to.
-   * There is a new iterator available for iterating through the input into beans. This iterator is consistent in every way with the behavior of the code that reads all data sets at once into a list of beans. The old iterator did not support all features, like locales and custom converters.
-   * opencsv now supports internationalization for all error messages it produces. The easiest way to benefit from this is to make certain the default locale is the one you want. Otherwise, look for the withErrorLocale() and setErrorLocale() methods in various classes. Localizations are provided for American English and German. Further submissions are welcome, but with a submission you enter into a life-long contract to provide updates for any new messages for the language(s) you submit. If you break this contract, you forefit your soul.
+* We have rewritten the bean code to be multi-threaded so that reading from an input directly into beans is significantly faster.
+Performance benefits depend largely on your data and hardware, but our non-rigorous tests indicate that reading now takes a <em>third</em> of the time it used to.
+* We have rewritten the bean code to be multi-threaded so that writing from a list of beans is significantly faster.
+Performance benefits depend largely on your data and hardware, but our non-rigorous tests indicate that writing now takes <em>half</em> of the time it used to.
+* There is a new iterator available for iterating through the input into beans.
+This iterator is consistent in every way with the behavior of the code that reads all data sets at once into a list of beans.
+The old iterator did not support all features, like locales and custom converters.
+* opencsv now supports internationalization for all error messages it produces.
+The easiest way to benefit from this is to make certain the default locale is the one you want.
+Otherwise, look for the withErrorLocale() and setErrorLocale() methods in various classes.
+Localizations are provided for American English and German.
+Further submissions are welcome, but with a submission you enter into a life-long contract to provide updates for any new messages for the language(s) you submit.
+If you break this contract, you forefit your soul.
    * Support for national character sets was added to ResultSetHelperService (NClob, NVarchar, NChar, LongNVarchar).
 
 Here are the things you can expect to encounter during an upgrade and what to

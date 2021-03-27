@@ -58,7 +58,7 @@ public abstract class AbstractCsvConverter implements CsvConverter {
      *
      * @since 4.3
      */
-    public AbstractCsvConverter() {
+    protected AbstractCsvConverter() {
         this.type = null;
         this.locale = null;
         this.writeLocale = null;
@@ -67,7 +67,7 @@ public abstract class AbstractCsvConverter implements CsvConverter {
 
     /**
      * Currently the only constructor for this class.
-     * 
+     *
      * @param type The type to which (on reading) or from which (on writing) is
      *   being converted
      * @param locale The locale to be used when converting for reading, if a
@@ -76,7 +76,7 @@ public abstract class AbstractCsvConverter implements CsvConverter {
      *                    a locale is relevant
      * @param errorLocale The locale to be used for error messages
      */
-    public AbstractCsvConverter(Class<?> type, String locale, String writeLocale, Locale errorLocale) {
+    protected AbstractCsvConverter(Class<?> type, String locale, String writeLocale, Locale errorLocale) {
         this.type = type;
         this.locale = StringUtils.isNotEmpty(locale) ? Locale.forLanguageTag(locale) : null;
         this.writeLocale = StringUtils.isNotEmpty(writeLocale) ? Locale.forLanguageTag(writeLocale) : null;
@@ -90,9 +90,10 @@ public abstract class AbstractCsvConverter implements CsvConverter {
      * routine in a class derived from this one.
      * 
      * @param value The contents of the field currently being processed from the
-     *   bean to be written. Can be null if the field is not marked as required.
+     *   bean to be written. Can be {@code null} if the field is not marked as
+     *   required.
      * @return A string representation of the value of the field in question in
-     *   the bean passed in, or an empty string if {@code value} is null
+     *   the bean passed in, or an empty string if {@code value} is {@code null}
      * @throws CsvDataTypeMismatchException This implementation doesn't, but
      *   subclasses do, so it must be declared
      */

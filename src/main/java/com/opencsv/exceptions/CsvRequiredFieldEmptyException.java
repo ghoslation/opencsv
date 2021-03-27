@@ -28,7 +28,7 @@ import org.apache.commons.collections4.list.UnmodifiableList;
  * @author Andrew Rucker Jones
  * @since 3.8
  */
-public class CsvRequiredFieldEmptyException extends CsvException {
+public class CsvRequiredFieldEmptyException extends CsvFieldAssignmentException {
     private static final long serialVersionUID = 1L;
 
     private final Class<?> beanClass;

@@ -6,14 +6,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The aggregator purpose is to collect multiple LineValidators and run them against a single line.
+ * The aggregator's purpose is to collect multiple {@link LineValidator}s and
+ * run them against a single line.
  * This way complex validations can be performed.
  *
  * @author Scott Conway
  * @since 5.0
  */
 public class LineValidatorAggregator {
-    private static final int CAPACITY = 256;
+    private static final int CAPACITY = 512;
+    private static final int MULTIPLIER = 3;
     private List<LineValidator> validators = new ArrayList<>();
 
     /**
@@ -25,7 +27,7 @@ public class LineValidatorAggregator {
     /**
      * Add an validator to the aggregator.
      *
-     * @param validator - validator to be added.
+     * @param validator Validator to be added.
      */
     public void addValidator(LineValidator validator) {
         if (validator != null) {
@@ -34,41 +36,56 @@ public class LineValidatorAggregator {
     }
 
     /**
-     * Runs all LineValidators isValid command against the line.   This is a short circuit and - as soon as one validator
-     * returns false then false is return.
+     * Runs all LineValidators' {@link LineValidator#isValid(String)} method against the line.
+     * This is a short circuit: as soon as one validator returns {@code false}
+     * then {@code false} is returned.
      *
-     * @param line - string to be validated.
-     * @return true if all validators isValid methods returns true, false otherwise.
+     * @param line String to be validated.
+     * @return {@code true} if all validators'
+     *   {@link LineValidator#isValid(String)} methods return {@code true},
+     *   {@code false} otherwise.
      */
-    public boolean isValid(String line) {
-        for (LineValidator validator : validators) {
-            if (!validator.isValid(line)) {
-                return false;
-            }
-        }
-        return true;
+    public boolean isValid(final String line) {
+        return validators.stream().allMatch(v -> v.isValid(line));
     }
 
     /**
-     * Runs all LineValdators validate commands and if the string is invalid then it combines all the validation error
+     * Runs all LineValidators validate commands and if the string is invalid then it combines all the validation error
      * messages in a single CsvValidationException.
      *
-     * @param line - string to be validation.
-     * @throws CsvValidationException - thrown if the string is invalid.
+     * @param line String to be validated
+     * @throws CsvValidationException Thrown if the string is invalid
      */
     public void validate(String line) throws CsvValidationException {
-        StringBuilder combinedExceptionMessage = new StringBuilder(CAPACITY);
+        if (validators.isEmpty()) {
+          return;
+        }
+
+        StringBuilder combinedExceptionMessage = null;
 
         for (LineValidator validator : validators) {
             try {
                 validator.validate(line);
             } catch (CsvValidationException ex) {
+                if (combinedExceptionMessage == null) {
+                    int length = (ex.getMessage().length() + 2) * MULTIPLIER;
+                    combinedExceptionMessage = new StringBuilder(Math.max(length, CAPACITY));
+                }
                 combinedExceptionMessage.append(ex.getMessage()).append("\n");
             }
         }
 
-        if (combinedExceptionMessage.length() > 0) {
+        if (combinedExceptionMessage != null && combinedExceptionMessage.length() > 0) {
             throw new CsvValidationException(combinedExceptionMessage.toString());
         }
+    }
+
+    /**
+     * Setter created for unit test.
+     *
+     * @param validators - list of validators to use.
+     */
+    void setValidators(List<LineValidator> validators) {
+        this.validators = validators;
     }
 }

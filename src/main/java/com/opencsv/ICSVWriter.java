@@ -172,6 +172,23 @@ public interface ICSVWriter extends Closeable, Flushable {
     boolean checkError();
 
     /**
+     * Get latest exception.
+     * <p>
+     * NOTE: This does not return exception which are caught by underlying writer (PrintWriter) or stream.
+     * If you are using this method then consider using a Writer class that throws exceptions.
+     *
+     * @return the latest IOException encountered in the print stream either on the underlying
+     * output stream or during a format conversion.
+     */
+    IOException getException();
+
+    /**
+     * Set the error back to null to be able to check for the next error
+     * using {@link ICSVWriter#checkError()}.
+     */
+    void resetError();
+
+    /**
      * Sets the result service.
      * @param resultService The ResultSetHelper
      */

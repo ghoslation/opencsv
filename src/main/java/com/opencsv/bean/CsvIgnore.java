@@ -19,4 +19,15 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface CsvIgnore {
+
+    /**
+     * The names of the profiles for which this field should be ignored.
+     * <p>If the field should be ignored for only some profiles, but not all,
+     * list the profiles that should ignore the field here.</p>
+     * <p>The default value is an empty string, which means all profiles.</p>
+     *
+     * @return The profiles for which this field should be ignored
+     * @since 5.4
+     */
+    String[] profiles() default "";
 }

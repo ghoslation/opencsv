@@ -2,7 +2,7 @@ package com.opencsv.processor;
 
 /**
  * This is the interface for processors for an array of {@link String}s read by
- * the {@link com.opencsv.CSVReader} <em>before</em>> they are validated.
+ * the {@link com.opencsv.CSVReader} <em>before</em> they are validated.
  * <p>This should only be used if you have a very good understanding and full
  * control of the data being processed or something you want applied to every
  * column in the row.</p>

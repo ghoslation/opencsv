@@ -1,5 +1,6 @@
 package com.opencsv;
 
+import com.opencsv.enums.CSVReaderNullFieldIndicator;
 import com.opencsv.exceptions.CsvValidationException;
 import com.opencsv.validators.LineValidatorAggregator;
 import com.opencsv.validators.RowValidatorAggregator;
@@ -69,6 +70,22 @@ public class CsvReaderHeaderAwareTest {
 
         //test end of stream
         assertNull(csvr.readNext());
+    }
+
+    @Test
+    public void testEmptyFieldAsNullWithMap() throws IOException, CsvValidationException {
+        CSVReaderHeaderAware csvr = (CSVReaderHeaderAware) new CSVReaderHeaderAwareBuilder(createReader())
+                .withFieldAsNull(CSVReaderNullFieldIndicator.EMPTY_SEPARATORS)
+                .build();
+
+        // The first two lines are irrelevant for this test.
+        csvr.readNext();
+        csvr.readNext();
+
+        // test empty elements that are null
+        Map<String, String> nextLine = csvr.readMap();
+        assertEquals(3, nextLine.size());
+        assertNull(nextLine.get("second"));
     }
 
     @Test
@@ -174,7 +191,7 @@ public class CsvReaderHeaderAwareTest {
     }
 
     @Test
-    public void shouldInitialiseHeaderWithCompleteConstrucotr() throws IOException, CsvValidationException {
+    public void shouldInitialiseHeaderWithCompleteConstructor() throws IOException, CsvValidationException {
         ICSVParser parser = mock(ICSVParser.class);
         when(parser.parseLineMulti(anyString())).thenReturn(new String[]{"myHeader"});
         CSVReaderHeaderAware reader = new CSVReaderHeaderAware(createReader(), 0, parser, false, false, 1, Locale.getDefault(),

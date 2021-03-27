@@ -21,6 +21,7 @@ import com.opencsv.bean.mocks.join.ErrorCode;
 import com.opencsv.bean.mocks.join.IdAndErrorSplitByName;
 import com.opencsv.bean.mocks.join.IdAndErrorSplitByPosition;
 import com.opencsv.bean.mocks.split.*;
+import com.opencsv.enums.CSVReaderNullFieldIndicator;
 import com.opencsv.exceptions.CsvBadConverterException;
 import com.opencsv.exceptions.CsvDataTypeMismatchException;
 import com.opencsv.exceptions.CsvException;
@@ -125,7 +126,21 @@ public class CollectionSplitTest {
         assertEquals(6, listType.size());
         assertEquals("[2, 2, 1, 3, 3, 3]", listType.toString());
     }
-    
+
+    @Test
+    public void testNullCollection() throws IOException {
+        List<DerivedMockBeanCollectionSplit> beanList = new CsvToBeanBuilder<DerivedMockBeanCollectionSplit>(new FileReader("src/test/resources/testnullcollections.csv"))
+                .withType(DerivedMockBeanCollectionSplit.class)
+                .withFieldAsNull(CSVReaderNullFieldIndicator.BOTH)
+                .build().parse();
+        assertEquals(1, beanList.size());
+        DerivedMockBeanCollectionSplit bean = beanList.get(0);
+
+        List<Integer> listType = bean.getListType();
+        assertTrue(listType instanceof LinkedList);
+        assertEquals(0, listType.size());
+    }
+
     @Test
     public void testGoodCollectionTypeSet() throws IOException {
         List<DerivedMockBeanCollectionSplit> beanList = new CsvToBeanBuilder<DerivedMockBeanCollectionSplit>(new FileReader("src/test/resources/testgoodcollections.csv"))
@@ -246,7 +261,33 @@ public class CollectionSplitTest {
         assertEquals(3, nonparameterizedCollectionType.size());
         assertEquals("[1,2,3]", nonparameterizedCollectionType.toString());
     }
-    
+
+    /**
+     * Tests good things one can do with enumeration collections.
+     * <p>This includes:<ul>
+     *     <li>Variable declared as Set</li>
+     *     <li>Variable declared as Collection</li>
+     *     <li>Variable declared as EnumSet</li>
+     *     <li>Variable declared as Collection with collectionType EnumSet</li>
+     * </ul></p>
+     */
+    @Test
+    public void testGoodEnums() {
+        String input = "collectionEnum,setEnum,enumSetEnum,collectionEnumWithHint\nsplit1 split2,split2 split3,split3 split1,split1 split2\n";
+        List<AnnotatedEnumCollection> beans = new CsvToBeanBuilder<AnnotatedEnumCollection>(new StringReader(input))
+                .withType(AnnotatedEnumCollection.class).build().parse();
+        assertEquals(1, beans.size());
+        AnnotatedEnumCollection bean = beans.get(0);
+
+        List<SplitEnum> split1split2 = new ArrayList<>();
+        split1split2.add(SplitEnum.SPLIT1); split1split2.add(SplitEnum.Split2);
+        assertTrue(bean.getCollectionEnum() instanceof ArrayList);
+        assertEquals(split1split2, bean.getCollectionEnum());
+        assertEquals(EnumSet.of(SplitEnum.SPLIT1, SplitEnum.Split2), bean.getCollectionEnumWithHint());
+        assertEquals(EnumSet.of(SplitEnum.Split2, SplitEnum.split3), bean.getSetEnum());
+        assertEquals(EnumSet.of(SplitEnum.split3, SplitEnum.SPLIT1), bean.getEnumSetEnum());
+    }
+
     @Test
     public void testGoodCollectionHeaderMapping() throws IOException {
         List<DerivedMockBeanCollectionSplit> beanList = new CsvToBeanBuilder<DerivedMockBeanCollectionSplit>(new FileReader("src/test/resources/testgoodcollections.csv"))
@@ -311,7 +352,7 @@ public class CollectionSplitTest {
     
     @Test
     public void testUnknownElementType() {
-        final String input = "$45";
+        final String input = "America/New_York";
         CsvToBean<UnknownElementType> csv2b = new CsvToBeanBuilder<UnknownElementType>(new StringReader(input))
                 .withType(UnknownElementType.class)
                 .withThrowExceptions(false)
@@ -324,7 +365,7 @@ public class CollectionSplitTest {
         CsvDataTypeMismatchException dtme = (CsvDataTypeMismatchException) csve;
         assertEquals(1, dtme.getLineNumber());
         assertNotNull(dtme.getLine());
-        assertEquals(Currency.class, dtme.getDestinationClass());
+        assertEquals(TimeZone.class, dtme.getDestinationClass());
         assertEquals(input, dtme.getSourceObject());
     }
     

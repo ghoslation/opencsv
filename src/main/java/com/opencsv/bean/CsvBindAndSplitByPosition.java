@@ -29,6 +29,7 @@ import java.util.regex.Matcher;
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
+@Repeatable(CsvBindAndSplitByPositions.class)
 public @interface CsvBindAndSplitByPosition {
 
     /**
@@ -139,7 +140,9 @@ public @interface CsvBindAndSplitByPosition {
      * based on the interface of the bean field annotated. These are:
      * <ul><li>{@link java.util.ArrayList} for {@link java.util.Collection}</li>
      * <li>{@link java.util.ArrayList} for {@link java.util.List}</li>
-     * <li>{@link java.util.HashSet} for {@link java.util.Set}</li>
+     * <li>{@link java.util.HashSet} for {@link java.util.Set} unless
+     * {@link #elementType()} is an enumeration type, in which case
+     * {@link java.util.EnumSet} is used</li>
      * <li>{@link java.util.TreeSet} for {@link java.util.SortedSet}</li>
      * <li>{@link java.util.TreeSet} for {@link java.util.NavigableSet}</li>
      * <li>{@link java.util.ArrayDeque} for {@link java.util.Queue}</li>
@@ -232,4 +235,29 @@ public @interface CsvBindAndSplitByPosition {
      * @since 4.3
      */
     String format() default "";
+
+    /**
+     * A profile can be used to annotate the same field differently for
+     * different inputs or outputs.
+     * <p>Perhaps you have multiple input sources, and they all use different
+     * header names or positions for the same data. With profiles, you don't
+     * have to create different beans with the same fields and different
+     * annotations for each input. Simply annotate the same field multiple
+     * times and specify the profile when you parse the input.</p>
+     * <p>The same applies to output: if you want to be able to represent the
+     * same data in multiple CSV formats (that is, with different headers or
+     * orders), annotate the bean fields multiple times with different profiles
+     * and specify which profile you want to use on writing.</p>
+     * <p>Results are undefined if profile names are not unique.</p>
+     * <p>If the same configuration applies to multiple profiles, simply list
+     * all applicable profile names here. This parameter is an array of
+     * strings.</p>
+     * <p>The empty string, which is the default value, specifies the default
+     * profile and will be used if no annotation for the specific profile
+     * being used can be found, or if no profile is specified.</p>
+     *
+     * @return The names of the profiles this configuration is for
+     * @since 5.4
+     */
+    String[] profiles() default "";
 }

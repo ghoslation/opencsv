@@ -7,12 +7,17 @@ import org.apache.commons.lang3.reflect.FieldUtils;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Optional;
 
 /**
  * Encapsulates the logic for accessing member variables of classes.
  * <p>The logic in opencsv is always:<ol>
  *     <li>Use an accessor method first, if available, and this always has the
  *     form "get"/"set" + member name with initial capital.</li>
+ *     <li>If this accessor method is available but deals in
+ *     {@link java.util.Optional}, wrap or unwrap as necessary. Empty
+ *     {@link java.util.Optional}s lead to {@code null} return values, and
+ *     {@code null} values lead to empty {@link java.util.Optional}s.</li>
  *     <li>Use reflection bypassing all access control restrictions.</li>
  * </ol>These are considered separately for reading and writing.</p>
  *
@@ -50,7 +55,15 @@ public class FieldAccess<T> {
                 + field.getName().substring(1);
         try {
             Method getterMethod = field.getDeclaringClass().getMethod(getterName);
-            localAccessor = bean -> (T) getterMethod.invoke(bean);
+            if(getterMethod.getReturnType().equals(Optional.class)) {
+                localAccessor = bean -> {
+                    Optional<T> opt = (Optional<T>) getterMethod.invoke(bean);
+                    return opt.orElse(null);
+                };
+            }
+            else {
+                localAccessor = bean -> (T) getterMethod.invoke(bean);
+            }
         } catch (NoSuchMethodException e) {
             localAccessor = bean -> (T)FieldUtils.readField(this.field, bean, true);
         }
@@ -64,8 +77,14 @@ public class FieldAccess<T> {
         try {
             Method setterMethod = field.getDeclaringClass().getMethod(setterName, field.getType());
             localAssignment = setterMethod::invoke;
-        } catch (NoSuchMethodException e) {
-            localAssignment = (bean, value) -> FieldUtils.writeField(this.field, bean, value, true);
+        } catch (NoSuchMethodException e1) {
+            try {
+                Method setterMethod = field.getDeclaringClass().getMethod(setterName, Optional.class);
+                localAssignment = (bean, value) -> setterMethod.invoke(bean, Optional.ofNullable(value));
+            }
+            catch(NoSuchMethodException e2) {
+                localAssignment = (bean, value) -> FieldUtils.writeField(this.field, bean, value, true);
+            }
         }
         return localAssignment;
     }

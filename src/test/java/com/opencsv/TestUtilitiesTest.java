@@ -15,6 +15,6 @@ public class TestUtilitiesTest {
       stringArray[2] = "c";
 
       assertEquals("Header\nNumber of elements:\t3\nelement 0:\ta\nelement 1:\tb\nelement 2:\tc\n",
-            TestUtilities.displayStringArray("Header", stringArray));
+            TestUtils.displayStringArray("Header", stringArray));
    }
 }

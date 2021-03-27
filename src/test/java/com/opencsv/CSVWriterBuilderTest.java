@@ -149,4 +149,13 @@ public class CSVWriterBuilderTest {
         assertSame(mockParser, FieldUtils.readField(csvWriter, "parser", true));
         assertEquals("Stop", FieldUtils.readField(csvWriter, "lineEnd", true));
     }
+
+    @Test
+    public void buildWithResultSetHelpler() {
+        ResultSetHelper mockHelper = mock(ResultSetHelper.class);
+        CSVWriter csvWriter = (CSVWriter) builder
+                .withResultSetHelper(mockHelper)
+                .build();
+        assertSame(mockHelper, csvWriter.resultService);
+    }
 }

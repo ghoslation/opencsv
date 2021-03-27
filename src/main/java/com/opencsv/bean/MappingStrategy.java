@@ -85,21 +85,16 @@ public interface MappingStrategy<T> {
      * @return A bean containing the converted information from the input
      * @throws CsvBeanIntrospectionException Generally, if some part of the bean cannot
      *   be accessed and used as needed
-     * @throws CsvRequiredFieldEmptyException If the input for a field defined
-     *   as required is empty
-     * @throws CsvDataTypeMismatchException If conversion of the input to a
-     *   field type fails
-     * @throws CsvConstraintViolationException If the value provided for a field
-     *   would in some way compromise the logical integrity of the data as a
-     *   whole
-     * @throws CsvValidationException If a user-supplied validator determines
-     * that the input is invalid
+     * @throws CsvFieldAssignmentException A more specific subclass of this
+     *   exception is thrown for any problem decoding and assigning a field
+     *   of the input to a bean field
+     * @throws CsvChainedException If multiple exceptions are thrown for the
+     * same input line
      * @since 4.2
      */
     T populateNewBean(String[] line)
-            throws CsvBeanIntrospectionException, CsvRequiredFieldEmptyException,
-            CsvDataTypeMismatchException, CsvConstraintViolationException,
-            CsvValidationException;
+            throws CsvBeanIntrospectionException, CsvFieldAssignmentException,
+            CsvChainedException;
     
     /**
      * Sets the locale for all error messages.
@@ -114,7 +109,10 @@ public interface MappingStrategy<T> {
    
     /**
      * Sets the class type that is being mapped.
-     * May perform additional initialization tasks.
+     * May perform additional initialization tasks. If instantiating a
+     * mapping strategy, this method should be called after any other
+     * initialization, for example a call to
+     * {@link #setErrorLocale(Locale)} or {@link #setProfile(String)}.
      *
      * @param type Class type.
      * @throws CsvBadConverterException If a field in the bean is annotated
@@ -125,16 +123,31 @@ public interface MappingStrategy<T> {
     void setType(Class<? extends T> type) throws CsvBadConverterException;
 
     /**
-     * When processing a bean for reading or writing, ignore the given fields
+     * Sets the profile this mapping strategy will use when configuring bean
+     * fields.
+     * <p>The default implementation throws
+     * {@link UnsupportedOperationException}.</p>
+     *
+     * @param profile The profile to use
+     * @since 5.4
+     */
+    default void setProfile(String profile) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * <p>
+     *     When processing a bean for reading or writing, ignore the given fields
      * from the given classes completely, including all annotations and
      * requirements.
-     * <p>This method has two compelling applications:<ol>
+     * This method has two compelling applications:</p>
+     * <ol>
      *     <li>If you are not able to modify the source code of the beans you
      *     use, or</li>
      *     <li>If you use a mapping strategy without annotations and want to
      *     exclude a small number of fields from a bean with a large number of
      *     fields.</li>
-     * </ol></p>
+     * </ol>
      * <p>Calling this method overwrites the fields passed in from any previous
      * calls. It is legal to call this method before calling
      * {@link #setType(Class)}, and it may be more efficient to do so.</p>
@@ -168,10 +181,11 @@ public interface MappingStrategy<T> {
      * @param bean The bean to be transmuted
      * @return The converted values of the bean fields in the correct order,
      *   ready to be passed to a {@link com.opencsv.CSVWriter}
-     * @throws CsvDataTypeMismatchException If expected to convert an
-     *   unsupported data type
-     * @throws CsvRequiredFieldEmptyException If the field is marked as required,
-     *   but is currently empty
+     * @throws CsvFieldAssignmentException A more specific subclass of this
+     *   exception is thrown for any problem decoding and assigning a field
+     *   of the input to a bean field
+     * @throws CsvChainedException If multiple exceptions are thrown for the
+     * same input line
      */
-    String[] transmuteBean(T bean) throws CsvDataTypeMismatchException, CsvRequiredFieldEmptyException;
+    String[] transmuteBean(T bean) throws CsvFieldAssignmentException, CsvChainedException;
 }

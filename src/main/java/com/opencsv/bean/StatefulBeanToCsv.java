@@ -19,8 +19,11 @@ import com.opencsv.CSVWriter;
 import com.opencsv.ICSVParser;
 import com.opencsv.ICSVWriter;
 import com.opencsv.bean.concurrent.BeanExecutor;
-import com.opencsv.bean.concurrent.OrderedObject;
 import com.opencsv.bean.concurrent.ProcessCsvBean;
+import com.opencsv.bean.exceptionhandler.CsvExceptionHandler;
+import com.opencsv.bean.exceptionhandler.ExceptionHandlerThrow;
+import com.opencsv.bean.util.OpencsvUtils;
+import com.opencsv.bean.util.OrderedObject;
 import com.opencsv.exceptions.CsvDataTypeMismatchException;
 import com.opencsv.exceptions.CsvException;
 import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
@@ -29,14 +32,17 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.iterators.PeekingIterator;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Writer;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * This class writes beans out in CSV format to a {@link java.io.Writer},
@@ -48,7 +54,7 @@ import java.util.stream.Stream;
  *
  * @param <T> Type of the bean to be written
  * @author Andrew Rucker Jones
- * @see OpencsvUtils#determineMappingStrategy(java.lang.Class, java.util.Locale)
+ * @see OpencsvUtils#determineMappingStrategy(java.lang.Class, java.util.Locale, java.lang.String)
  * @since 3.9
  */
 public class StatefulBeanToCsv<T> {
@@ -66,13 +72,14 @@ public class StatefulBeanToCsv<T> {
     private MappingStrategy<T> mappingStrategy;
     private final Writer writer;
     private ICSVWriter csvwriter;
-    private boolean throwExceptions;
+    private final CsvExceptionHandler exceptionHandler;
     private List<CsvException> capturedExceptions = new ArrayList<>();
     private boolean orderedResults = true;
     private BeanExecutor<T> executor = null;
     private Locale errorLocale = Locale.getDefault();
-    private boolean applyQuotesToAll;
+    private final boolean applyQuotesToAll;
     private final MultiValuedMap<Class<?>, Field> ignoredFields;
+    private final String profile;
 
     /**
      * Constructor used when supplying a Writer instead of a CsvWriter class.
@@ -83,26 +90,26 @@ public class StatefulBeanToCsv<T> {
      * @param mappingStrategy  The mapping strategy to use when writing a CSV file
      * @param quotechar        The quote character to use when writing a CSV file
      * @param separator        The field separator to use when writing a CSV file
-     * @param throwExceptions  Whether or not exceptions should be thrown while
-     *                         writing the CSV file. If not, they are collected and can be retrieved
-     *                         via {@link #getCapturedExceptions()}.
+     * @param exceptionHandler Determines the exception handling behavior
      * @param writer           A {@link java.io.Writer} for writing the beans as a CSV to
      * @param applyQuotesToAll Whether all output fields should be quoted
      * @param ignoredFields The fields to ignore during processing. May be {@code null}.
+     * @param profile The profile to use when configuring how to interpret bean fields
      */
     StatefulBeanToCsv(char escapechar, String lineEnd,
                       MappingStrategy<T> mappingStrategy, char quotechar, char separator,
-                      boolean throwExceptions, Writer writer, boolean applyQuotesToAll,
-                      MultiValuedMap<Class<?>, Field> ignoredFields) {
+                      CsvExceptionHandler exceptionHandler, Writer writer, boolean applyQuotesToAll,
+                      MultiValuedMap<Class<?>, Field> ignoredFields, String profile) {
         this.escapechar = escapechar;
         this.lineEnd = lineEnd;
         this.mappingStrategy = mappingStrategy;
         this.quotechar = quotechar;
         this.separator = separator;
-        this.throwExceptions = throwExceptions;
+        this.exceptionHandler = exceptionHandler;
         this.writer = writer;
         this.applyQuotesToAll = applyQuotesToAll;
         this.ignoredFields = ignoredFields;
+        this.profile = StringUtils.defaultString(profile);
     }
 
     /**
@@ -110,19 +117,18 @@ public class StatefulBeanToCsv<T> {
      * with a user-supplied {@link com.opencsv.ICSVWriter} class.
      *
      * @param mappingStrategy  The mapping strategy to use when writing a CSV file
-     * @param throwExceptions  Whether or not exceptions should be thrown while
-     *                         writing the CSV file. If not, they are collected and can be retrieved
-     *                         via {@link #getCapturedExceptions()}.
+     * @param exceptionHandler Determines the exception handling behavior
      * @param applyQuotesToAll Whether all output fields should be quoted
      * @param csvWriter        An user-supplied {@link com.opencsv.ICSVWriter} for writing beans to a CSV output
      * @param ignoredFields The fields to ignore during processing. May be {@code null}.
+     * @param profile The profile to use when configuring how to interpret bean fields
      */
     public StatefulBeanToCsv(MappingStrategy<T> mappingStrategy,
-                             boolean throwExceptions, boolean applyQuotesToAll,
+                             CsvExceptionHandler exceptionHandler, boolean applyQuotesToAll,
                              ICSVWriter csvWriter,
-                             MultiValuedMap<Class<?>, Field> ignoredFields) {
+                             MultiValuedMap<Class<?>, Field> ignoredFields, String profile) {
         this.mappingStrategy = mappingStrategy;
-        this.throwExceptions = throwExceptions;
+        this.exceptionHandler = exceptionHandler;
         this.applyQuotesToAll = applyQuotesToAll;
         this.csvwriter = csvWriter;
 
@@ -132,6 +138,7 @@ public class StatefulBeanToCsv<T> {
         this.separator = NO_CHARACTER;
         this.writer = null;
         this.ignoredFields = ignoredFields;
+        this.profile = StringUtils.defaultString(profile);
     }
 
     /**
@@ -150,7 +157,8 @@ public class StatefulBeanToCsv<T> {
 
         // Determine mapping strategy
         if (mappingStrategy == null) {
-            mappingStrategy = OpencsvUtils.determineMappingStrategy((Class<T>) bean.getClass(), errorLocale);
+            mappingStrategy = OpencsvUtils.determineMappingStrategy(
+                    (Class<T>) bean.getClass(), errorLocale, profile);
         }
 
         // Ignore fields. It's possible the mapping strategy has already been
@@ -196,10 +204,10 @@ public class StatefulBeanToCsv<T> {
 
             // Process the bean
             BlockingQueue<OrderedObject<String[]>> resultantLineQueue = new ArrayBlockingQueue<>(1);
-            BlockingQueue<OrderedObject<CsvException>> thrownExceptionsQueue = new ArrayBlockingQueue<>(1);
+            BlockingQueue<OrderedObject<CsvException>> thrownExceptionsQueue = new LinkedBlockingQueue<>();
             ProcessCsvBean<T> proc = new ProcessCsvBean<>(++lineNumber,
                     mappingStrategy, bean, resultantLineQueue,
-                    thrownExceptionsQueue, throwExceptions);
+                    thrownExceptionsQueue, new TreeSet<>(), exceptionHandler);
             try {
                 proc.run();
             } catch (RuntimeException re) {
@@ -223,8 +231,9 @@ public class StatefulBeanToCsv<T> {
             // Write out the result
             if (!thrownExceptionsQueue.isEmpty()) {
                 OrderedObject<CsvException> o = thrownExceptionsQueue.poll();
-                if (o != null && o.getElement() != null) {
+                while (o != null && o.getElement() != null) {
                     capturedExceptions.add(o.getElement());
+                    o = thrownExceptionsQueue.poll();
                 }
             } else {
                 // No exception, so there really must always be a string
@@ -240,7 +249,7 @@ public class StatefulBeanToCsv<T> {
         while (beans.hasNext()) {
             T bean = beans.next();
             if (bean != null) {
-                executor.submitBean(++lineNumber, mappingStrategy, bean, throwExceptions);
+                executor.submitBean(++lineNumber, mappingStrategy, bean, exceptionHandler);
             }
         }
         executor.complete();
@@ -287,7 +296,7 @@ public class StatefulBeanToCsv<T> {
             beforeFirstWrite(firstBean);
         }
 
-        executor = new BeanExecutor<>(orderedResults);
+        executor = new BeanExecutor<>(orderedResults, errorLocale);
         executor.prepare();
 
         // Process the beans
@@ -319,9 +328,12 @@ public class StatefulBeanToCsv<T> {
             throw new RuntimeException(ResourceBundle.getBundle(ICSVParser.DEFAULT_BUNDLE_NAME, errorLocale)
                     .getString("error.writing.beans"), e);
         }
+        finally {
+            capturedExceptions.addAll(executor.getCapturedExceptions());
+        }
 
-        capturedExceptions.addAll(executor.getCapturedExceptions());
-        executor.resultStream().forEach(l -> csvwriter.writeNext(l, applyQuotesToAll));
+        StreamSupport.stream(executor, false)
+                .forEach(l -> csvwriter.writeNext(l, applyQuotesToAll));
     }
 
     /**
@@ -357,9 +369,11 @@ public class StatefulBeanToCsv<T> {
     /**
      * @return Whether or not exceptions are thrown. If they are not thrown,
      * they are captured and returned later via {@link #getCapturedExceptions()}.
+     * @deprecated There is simply no need for this method.
      */
+    @Deprecated
     public boolean isThrowExceptions() {
-        return throwExceptions;
+        return exceptionHandler instanceof ExceptionHandlerThrow;
     }
 
     /**
@@ -378,6 +392,7 @@ public class StatefulBeanToCsv<T> {
     public List<CsvException> getCapturedExceptions() {
         List<CsvException> intermediate = capturedExceptions;
         capturedExceptions = new ArrayList<>();
+        intermediate.sort(Comparator.comparingLong(CsvException::getLineNumber));
         return intermediate;
     }
 

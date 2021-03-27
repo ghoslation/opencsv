@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.opencsv.bean.mocks;
+package com.opencsv.bean.mocks.number;
 
 import com.opencsv.bean.CsvBindByName;
 import com.opencsv.bean.CsvNumber;

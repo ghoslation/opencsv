@@ -67,6 +67,28 @@ public class CSVReaderWithValidatorsTest {
         });
     }
 
+    @DisplayName("CSVReader with LineValidator with bad first string")
+    @Test
+    public void readerWithLineValidatorWithBadFirstString() throws IOException {
+        String lines = "d,bad,f\na,b,c\n";
+        StringReader stringReader = new StringReader(lines);
+        CSVReaderBuilder builder = new CSVReaderBuilder(stringReader);
+
+        CSVReader csvReader = builder
+                .withLineValidator(lineDoesNotHaveAwfulString)
+                .withLineValidator(lineDoesNotHaveBadString)
+                .build();
+
+        try {
+            csvReader.readAll();
+            fail("Expected a CsvValidationException to be thrown!");
+        } catch (CsvValidationException cve) {
+            assertEquals(1, cve.getLineNumber());
+        } catch (Exception e) {
+            fail("Caught an exception other than CsvValidationException!", e);
+        }
+    }
+
     @DisplayName("CSVReader populates line number of exception thrown by LineValidatorAggregator")
     @Test
     public void readerWithLineValidatorExceptionContainsLineNumber() throws IOException {
@@ -80,7 +102,7 @@ public class CSVReaderWithValidatorsTest {
                 .build();
 
         try {
-            List<String[]> rows = csvReader.readAll();
+            csvReader.readAll();
             fail("Expected a CsvValidationException to be thrown!");
         } catch (CsvValidationException cve) {
             assertEquals(2, cve.getLineNumber());

@@ -20,7 +20,7 @@ Feel free to look at our unit tests if you are having issues with the validators
 
 Here is a crude diagram of csv data showing where the different types of validators and processors are called.
 
-[ditaa]
+[ditaa,diagram-overview,format=png]
 ....
                    +-------------+
                    |     CSV     |

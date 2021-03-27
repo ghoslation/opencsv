@@ -32,9 +32,9 @@ public class ComparatorTest {
 
     /**
      * Tests a {@link LiteralComparator} with an array of {@link java.lang.Integer}s.
-     * <p>Also incidentally tests:
+     * <p>Also incidentally tests:</p>
      * <ul><li>Having a null in the data with no null in the comparator</li>
-     * <li>Having data otherwise not in the comparator</li></ul></p>
+     * <li>Having data otherwise not in the comparator</li></ul>
      */
     @Test
     public void testLiteralComparatorInteger() {
@@ -45,8 +45,8 @@ public class ComparatorTest {
 
     /**
      * Tests a {@link LiteralComparator} with an array of {@link java.lang.String}s.
-     * <p>Also incidentally tests:
-     * <ul><li>Having a null in the data with a null in the comparator</li></ul></p>
+     * <p>Also incidentally tests:</p>
+     * <ul><li>Having a null in the data with a null in the comparator</li></ul>
      */
     @Test
     public void testLiteralComparatorString() {

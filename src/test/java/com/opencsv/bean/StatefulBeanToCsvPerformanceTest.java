@@ -37,14 +37,6 @@ public class StatefulBeanToCsvPerformanceTest {
         Locale.setDefault(systemLocale);
     }
 
-    private ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> createTwoGoodBeans()
-            throws IOException {
-        List<AnnotatedMockBeanFull> beans = new CsvToBeanBuilder<AnnotatedMockBeanFull>(
-                new FileReader("src/test/resources/testinputwriteposfullgood.csv"))
-                .withType(AnnotatedMockBeanFull.class).withSeparator(';').build().parse();
-        return new ImmutablePair<>(beans.get(0), beans.get(1));
-    }
-
     @Test
     public void testPerformance()
             throws IOException, CsvDataTypeMismatchException,
@@ -68,7 +60,7 @@ public class StatefulBeanToCsvPerformanceTest {
 
     private void performanceWithRFC4180Parser(int numBeans, boolean displayData) throws IOException, CsvDataTypeMismatchException, CsvRequiredFieldEmptyException {
         List<AnnotatedMockBeanFull> beanList = new ArrayList<>(numBeans);
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> pair = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> pair = TestUtils.createTwoGoodBeans();
         for (int i = 0; i < numBeans / 2; i++) {
             beanList.add(pair.left);
             beanList.add(pair.right);
@@ -153,7 +145,7 @@ public class StatefulBeanToCsvPerformanceTest {
     private void performanceWithDefaultWriter(int numBeans, boolean displayData) throws IOException, CsvDataTypeMismatchException, CsvRequiredFieldEmptyException {
 
         List<AnnotatedMockBeanFull> beanList = new ArrayList<>(numBeans);
-        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> pair = createTwoGoodBeans();
+        ImmutablePair<AnnotatedMockBeanFull, AnnotatedMockBeanFull> pair = TestUtils.createTwoGoodBeans();
 
         for (int i = 0; i < numBeans / 2; i++) {
             beanList.add(pair.left);

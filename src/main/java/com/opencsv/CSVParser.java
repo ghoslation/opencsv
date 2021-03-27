@@ -17,6 +17,7 @@ package com.opencsv;
  */
 
 import com.opencsv.enums.CSVReaderNullFieldIndicator;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -27,16 +28,16 @@ import java.util.Locale;
 import java.util.ResourceBundle;
 
 /**
- * A very simple CSV parser released under a commercial-friendly license.
- * This just implements splitting a single line into fields.
+ * <p>A very simple CSV parser released under a commercial-friendly license.
+ * This just implements splitting a single line into fields.</p>
  *
- * The purpose of the CSVParser is to take a single string and parse it into
- * its elements based on the delimiter, quote and escape characters.
+ * <p>The purpose of the CSVParser is to take a single string and parse it into
+ * its elements based on the delimiter, quote and escape characters.</p>
  *
- * The CSVParser has grown organically based on user requests and does not truly match
+ * <p>The CSVParser has grown organically based on user requests and does not truly match
  * any current requirements (though it can be configured to match or come close).  There
  * is no plans to change this as it will break existing requirements.  Consider using
- * the RFC4180Parser for less configurability but closer match to the RFC4180 requirements.
+ * the RFC4180Parser for less configurability but closer match to the RFC4180 requirements.</p>
  *
  * @author Glen Smith
  * @author Rainer Pruy
@@ -164,9 +165,9 @@ public class CSVParser extends AbstractCSVParser {
     protected String convertToCsvValue(String value, boolean applyQuotestoAll) {
         String testValue = (value == null && !nullFieldIndicator.equals(CSVReaderNullFieldIndicator.NEITHER)) ? "" : value;
         StringBuilder builder = new StringBuilder(testValue == null ? MAX_SIZE_FOR_EMPTY_FIELD : (testValue.length() * 2));
-        boolean containsQuoteChar = testValue != null && testValue.contains(Character.toString(getQuotechar()));
-        boolean containsEscapeChar = testValue != null && testValue.contains(Character.toString(getEscape()));
-        boolean containsSeparatorChar = testValue != null && testValue.contains(Character.toString(getSeparator()));
+        boolean containsQuoteChar = StringUtils.contains(testValue, getQuotechar());
+        boolean containsEscapeChar = StringUtils.contains(testValue, getEscape());
+        boolean containsSeparatorChar = StringUtils.contains(testValue, getSeparator());
         boolean surroundWithQuotes = applyQuotestoAll || isSurroundWithQuotes(value, containsSeparatorChar);
 
         String convertedString = !containsQuoteChar ? testValue : testValue.replaceAll(Character.toString(getQuotechar()), Character.toString(getQuotechar()) + Character.toString(getQuotechar()));
@@ -201,7 +202,7 @@ public class CSVParser extends AbstractCSVParser {
             return null;
         }
 
-        final List<String> tokensOnThisLine = tokensOnLastCompleteLine <= 0 ? new ArrayList<>() : new ArrayList<>(tokensOnLastCompleteLine);
+        final List<String> tokensOnThisLine = tokensOnLastCompleteLine <= 0 ? new ArrayList<>() : new ArrayList<>((tokensOnLastCompleteLine + 1) * 2);
         final StringFragmentCopier sfc = new StringFragmentCopier(nextLine);
         boolean inQuotes = false;
         boolean fromQuotedField = false;
@@ -263,7 +264,7 @@ public class CSVParser extends AbstractCSVParser {
         }
 
         tokensOnLastCompleteLine = tokensOnThisLine.size();
-        return tokensOnThisLine.toArray(new String[0]);
+        return tokensOnThisLine.toArray(ArrayUtils.EMPTY_STRING_ARRAY);
 
     }
 
@@ -359,22 +360,35 @@ public class CSVParser extends AbstractCSVParser {
     }
 
     /**
+     * Checks to see if the character is the defined separator.
+     *
+     * @param c Source character
+     * @return True if the character is the defined separator
+     */
+    private boolean isCharacterSeparator(char c) {
+        return c == separator;
+    }
+
+    /**
      * Checks to see if the character passed in could be escapable.
-     * Escapable characters for opencsv are the quotation character or the
-     * escape character.
+     * Escapable characters for opencsv are the quotation character, the
+     * escape character, and the separator.
      *
      * @param c Source character
      * @return True if the character could be escapable.
      */
     private boolean isCharacterEscapable(char c) {
-        return isCharacterQuoteCharacter(c) || isCharacterEscapeCharacter(c);
+        return isCharacterQuoteCharacter(c) || isCharacterEscapeCharacter(c) || isCharacterSeparator(c);
     }
 
     /**
      * Checks to see if the character after the current index in a String is an
      * escapable character.
-     * Meaning the next character is either a quotation character or the escape
-     * char and you are inside quotes.
+     * <p>Meaning the next character is a quotation character, the escape
+     * char, or the separator and you are inside quotes.</p>
+     * <p>"Inside quotes" in this context is interpreted liberally. For
+     * instance, if quotes are not expected but we are inside a field, that
+     * still counts for the purposes of this method as being "in quotes".</p>
      *
      * Precondition: the current character is an escape.
      *

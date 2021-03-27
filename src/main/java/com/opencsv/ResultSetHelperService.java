@@ -34,8 +34,8 @@ public class ResultSetHelperService implements ResultSetHelper {
    static final String DEFAULT_TIMESTAMP_FORMAT = "dd-MMM-yyyy HH:mm:ss";
    private static final String DEFAULT_VALUE = StringUtils.EMPTY;
 
-   private String dateFormat = DEFAULT_DATE_FORMAT;
-   private String dateTimeFormat = DEFAULT_TIMESTAMP_FORMAT;
+   protected String dateFormat = DEFAULT_DATE_FORMAT;
+   protected String dateTimeFormat = DEFAULT_TIMESTAMP_FORMAT;
 
    /**
     * Default constructor.
@@ -171,7 +171,16 @@ public class ResultSetHelperService implements ResultSetHelper {
       return value;
    }
 
-   private String handleVarChar(ResultSet rs, int colIndex, boolean trim) throws SQLException {
+   /**
+    * retrieves the data from an VarChar in a result set
+    *
+    * @param rs       - result set
+    * @param colIndex - column location of the data in the result set
+    * @param trim     - should the value be trimmed before being returned
+    * @return a string representing the VarChar from the result set
+    * @throws SQLException
+    */
+   protected String handleVarChar(ResultSet rs, int colIndex, boolean trim) throws SQLException {
       String value;
       String columnValue = rs.getString(colIndex);
       if (trim && columnValue != null) {
@@ -182,7 +191,16 @@ public class ResultSetHelperService implements ResultSetHelper {
       return value;
    }
 
-   private String handleNVarChar(ResultSet rs, int colIndex, boolean trim) throws SQLException {
+   /**
+    * retrieves the data from an NVarChar in a result set
+    *
+    * @param rs       - result set
+    * @param colIndex - column location of the data in the result set
+    * @param trim     - should the value be trimmed before being returned
+    * @return a string representing the NVarChar from the result set
+    * @throws SQLException
+    */
+   protected String handleNVarChar(ResultSet rs, int colIndex, boolean trim) throws SQLException {
       String value;
       String nColumnValue = rs.getNString(colIndex);
       if (trim && nColumnValue != null) {
@@ -193,7 +211,16 @@ public class ResultSetHelperService implements ResultSetHelper {
       return value;
    }
 
-   private String handleDate(ResultSet rs, int colIndex, String dateFormatString) throws SQLException {
+   /**
+    * retrieves an date from a result set
+    *
+    * @param rs               - result set
+    * @param colIndex         - column location of the data in the result set
+    * @param dateFormatString - desired format of the date
+    * @return - a string representing the data from the result set in the format set in dateFomratString.
+    * @throws SQLException
+    */
+   protected String handleDate(ResultSet rs, int colIndex, String dateFormatString) throws SQLException {
       String value = DEFAULT_VALUE;
       Date date = rs.getDate(colIndex);
       if (date != null) {
@@ -203,7 +230,16 @@ public class ResultSetHelperService implements ResultSetHelper {
       return value;
    }
 
-   private String handleClob(ResultSet rs, int colIndex) throws SQLException, IOException {
+   /**
+    * retrieves the data out of a CLOB
+    *
+    * @param rs       - result set
+    * @param colIndex - column location of the data in the result set
+    * @return the data in the Clob as a string.
+    * @throws SQLException
+    * @throws IOException
+    */
+   protected String handleClob(ResultSet rs, int colIndex) throws SQLException, IOException {
       String value = DEFAULT_VALUE;
       Clob c = rs.getClob(colIndex);
       if (c != null) {
@@ -214,7 +250,16 @@ public class ResultSetHelperService implements ResultSetHelper {
       return value;
    }
 
-   private String handleNClob(ResultSet rs, int colIndex) throws SQLException, IOException {
+   /**
+    * retrieves the data out of a NCLOB
+    *
+    * @param rs       - result set
+    * @param colIndex - column location of the data in the result set
+    * @return the data in the NCLOB as a string.
+    * @throws SQLException
+    * @throws IOException
+    */
+   protected String handleNClob(ResultSet rs, int colIndex) throws SQLException, IOException {
       String value = DEFAULT_VALUE;
       NClob nc = rs.getNClob(colIndex);
       if (nc != null) {

@@ -15,27 +15,35 @@
  */
 package com.opencsv.bean.concurrent;
 
+import com.opencsv.bean.util.OrderedObject;
 import com.opencsv.exceptions.CsvException;
+import org.apache.commons.collections4.ListValuedMap;
+
+import java.util.SortedSet;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * The accumulator takes two queues of results of transforming input into beans
- * (beans an exceptions) and orders them for later consumption.
+ * The accumulator takes two queues of results of transforming text input
+ * into bean output or bean input into text output (output and exceptions)
+ * and orders them for later consumption.
  * This task is delegated to a separate thread so threads can quickly queue
  * their results in a (synchronized, thread-safe) queue and move on with other
  * work, while the relatively expensive operation of ordering the results
  * doesn't block other threads waiting for access to the ordered map.
- * @param <T> Type of the bean being created
+ * @param <T> Type of output being created (bean or strings)
  * @author Andrew Rucker Jones
  * @since 4.0
  */
 class AccumulateCsvResults<T> extends Thread {
     private final BlockingQueue<OrderedObject<T>> resultantBeansQueue;
     private final BlockingQueue<OrderedObject<CsvException>> thrownExceptionsQueue;
+    private final SortedSet<Long> expectedRecords;
     private final ConcurrentMap<Long, T> resultantBeanMap;
-    private final ConcurrentMap<Long, CsvException> thrownExceptionsMap;
     private boolean mustStop = false;
+
+    /** <em>All access to this variable must be synchronized.</em> */
+    private final ListValuedMap<Long, CsvException> thrownExceptionsMap;
 
     /**
      * The only accepted constructor for the accumulator.
@@ -45,18 +53,24 @@ class AccumulateCsvResults<T> extends Thread {
      *   {@link com.opencsv.exceptions.CsvException} and its derivatives coming
      *   out of the pool of threads creating beans. The accumulator pulls from
      *   this queue.
+     * @param expectedRecords A list of outstanding record numbers so gaps
+     *                        in ordering due to filtered input or exceptions
+     *                        while converting can be detected.
      * @param resultantBeanMap The (ordered) map of beans that have been
      *   created. The accumulator inserts into this map.
-     * @param thrownExceptionsMap The (ordered) map of suppressed exceptions
-     *   thrown during bean creation. The accumulator inserts into this map.
+     * @param thrownExceptionsMap The map of suppressed exceptions thrown
+     *   during bean creation. The accumulator inserts into this map. <em>All
+     *   access to this variable must be synchronized.</em>
      */
     AccumulateCsvResults(BlockingQueue<OrderedObject<T>> resultantBeansQueue,
                          BlockingQueue<OrderedObject<CsvException>> thrownExceptionsQueue,
+                         SortedSet<Long> expectedRecords,
                          ConcurrentMap<Long, T> resultantBeanMap,
-                         ConcurrentMap<Long, CsvException> thrownExceptionsMap) {
+                         ListValuedMap<Long, CsvException> thrownExceptionsMap) {
         super();
         this.resultantBeansQueue = resultantBeansQueue;
         this.thrownExceptionsQueue = thrownExceptionsQueue;
+        this.expectedRecords = expectedRecords;
         this.resultantBeanMap = resultantBeanMap;
         this.thrownExceptionsMap = thrownExceptionsMap;
     }
@@ -84,16 +98,38 @@ class AccumulateCsvResults<T> extends Thread {
     @Override
     public void run() {
         while(!isMustStop() || !resultantBeansQueue.isEmpty() || !thrownExceptionsQueue.isEmpty()) {
-            while(!resultantBeansQueue.isEmpty()) {
-                OrderedObject<T> bean = resultantBeansQueue.poll();
-                if(bean != null) {
-                    resultantBeanMap.put(bean.getOrdinal(), bean.getElement());
+            OrderedObject<T> orderedObject = null;
+
+            // Move the output objects from the unsorted queue to the
+            // navigable map. Only the next expected objects are moved;
+            // if a gap in numbering occurs, the thread waits until those
+            // results have been filled in before continuing.
+            if (!expectedRecords.isEmpty()) {
+                orderedObject = resultantBeansQueue.stream()
+                        .filter(e -> expectedRecords.first().equals(e.getOrdinal()))
+                        .findAny().orElse(null);
+            }
+            while(orderedObject != null) {
+                resultantBeansQueue.remove(orderedObject);
+                expectedRecords.remove(expectedRecords.first());
+                resultantBeanMap.put(orderedObject.getOrdinal(), orderedObject.getElement());
+                if(!expectedRecords.isEmpty()) {
+                    orderedObject = resultantBeansQueue.stream()
+                            .filter(e -> expectedRecords.first().equals(e.getOrdinal()))
+                            .findAny().orElse(null);
+                }
+                else {
+                    orderedObject = null;
                 }
             }
+
+            // Move the exceptions from the unsorted queue to the navigable map.
             while(!thrownExceptionsQueue.isEmpty()) {
                 OrderedObject<CsvException> capturedException = thrownExceptionsQueue.poll();
                 if(capturedException != null) {
-                    thrownExceptionsMap.put(capturedException.getOrdinal(), capturedException.getElement());
+                    synchronized (thrownExceptionsMap) {
+                        thrownExceptionsMap.put(capturedException.getOrdinal(), capturedException.getElement());
+                    }
                 }
             }
             Thread.yield();

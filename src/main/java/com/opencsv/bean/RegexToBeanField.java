@@ -15,6 +15,8 @@
  */
 package com.opencsv.bean;
 
+import com.opencsv.bean.util.OpencsvUtils;
+
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

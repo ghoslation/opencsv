@@ -13,16 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.opencsv.bean;
+package com.opencsv.bean.util;
 
 import com.opencsv.ICSVParser;
+import com.opencsv.bean.*;
+import com.opencsv.bean.exceptionhandler.CsvExceptionHandler;
 import com.opencsv.exceptions.CsvBadConverterException;
+import com.opencsv.exceptions.CsvChainedException;
+import com.opencsv.exceptions.CsvException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
 
-import java.util.IllegalFormatException;
-import java.util.Locale;
-import java.util.ResourceBundle;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,16 +33,16 @@ import java.util.stream.Stream;
 
 /**
  * This class is meant to be a collection of general purpose static methods
- * useful in processing mapping strategies.
- * 
+ * useful in internal processing for opencsv.
+ *
  * @author Andrew Rucker Jones
  * @since 3.9
  */
 public final class OpencsvUtils {
-    
+
     /** This class can't be instantiated. */
     private OpencsvUtils() {}
-    
+
     /**
      * Determines which mapping strategy is appropriate for this bean.
      * The algorithm is:<ol>
@@ -51,14 +53,16 @@ public final class OpencsvUtils {
      * <li>Otherwise, {@link HeaderColumnNameMappingStrategy} is chosen. If
      * annotations are present, they will be used, otherwise the field names
      * will be used as the column names.</li></ol>
-     * 
+     *
      * @param <T> The type of the bean for which the mapping strategy is sought
      * @param type The class of the bean for which the mapping strategy is sought
      * @param errorLocale The locale to use for all error messages. If null, the
      *   default locale is used.
+     * @param profile The profile to use when configuring bean fields
      * @return A functional mapping strategy for the bean in question
      */
-    static <T> MappingStrategy<T> determineMappingStrategy(Class<? extends T> type, Locale errorLocale) {
+    public static <T> MappingStrategy<T> determineMappingStrategy(
+            Class<? extends T> type, Locale errorLocale, String profile) {
         // Check for annotations
         boolean positionAnnotationsPresent = Stream.of(FieldUtils.getAllFields(type)).anyMatch(
                 f -> f.isAnnotationPresent(CsvBindByPosition.class)
@@ -71,10 +75,11 @@ public final class OpencsvUtils {
                 new ColumnPositionMappingStrategy<>() :
                 new HeaderColumnNameMappingStrategy<>();
         mappingStrategy.setErrorLocale(errorLocale);
+        mappingStrategy.setProfile(profile);
         mappingStrategy.setType(type);
         return mappingStrategy;
     }
-    
+
     /**
      * I find it annoying that when I want to queue something in a blocking
      * queue, the thread might be interrupted and I have to try again; this
@@ -92,6 +97,41 @@ public final class OpencsvUtils {
                 interrupted = false;
             }
             catch(InterruptedException ie) {/* Do nothing. */}
+        }
+    }
+
+    /**
+     * A function to consolidate code common to handling exceptions thrown
+     * during reading or writing of CSV files.
+     * The proper line number is set for the exception, the exception handler
+     * is run, and the exception is queued or thrown as necessary.
+     *
+     * @param e The exception originally thrown
+     * @param lineNumber The line or record number that caused the exception
+     * @param exceptionHandler The exception handler
+     * @param queue The queue for captured exceptions
+     * @since 5.2
+     */
+    public static synchronized void handleException(
+            CsvException e, long lineNumber,
+            CsvExceptionHandler exceptionHandler, BlockingQueue<OrderedObject<CsvException>> queue) {
+        e.setLineNumber(lineNumber);
+        CsvException capturedException = null;
+        List<CsvException> exceptionList = e instanceof CsvChainedException ?
+                Collections.<CsvException>unmodifiableList(((CsvChainedException)e).getExceptionChain()) :
+                Collections.singletonList(e);
+        for (CsvException iteratedException : exceptionList) {
+            try {
+                capturedException = exceptionHandler.handleException(iteratedException);
+            } catch (CsvException csve) {
+                capturedException = csve;
+                throw new RuntimeException(csve);
+            } finally {
+                if (capturedException != null) {
+                    queueRefuseToAcceptDefeat(queue,
+                            new OrderedObject<>(lineNumber, capturedException));
+                }
+            }
         }
     }
 
@@ -117,7 +157,7 @@ public final class OpencsvUtils {
      * but invalid or valid but does not have at least one capturing group
      * @since 4.3
      */
-    static Pattern compilePatternAtLeastOneGroup(String regex, int regexFlags, Class<?> callingClass, Locale errorLocale)
+    public static Pattern compilePatternAtLeastOneGroup(String regex, int regexFlags, Class<?> callingClass, Locale errorLocale)
             throws CsvBadConverterException {
         Pattern tempPattern = compilePattern(regex, regexFlags, callingClass, errorLocale);
         Locale exceptionLocale = errorLocale == null ? Locale.getDefault() : errorLocale;
@@ -158,7 +198,7 @@ public final class OpencsvUtils {
      * but invalid
      * @since 4.3
      */
-    static Pattern compilePattern(String regex, int regexFlags, Class<?> callingClass, Locale errorLocale)
+    public static Pattern compilePattern(String regex, int regexFlags, Class<?> callingClass, Locale errorLocale)
             throws CsvBadConverterException {
         Pattern tempPattern = null;
         Locale exceptionLocale = errorLocale == null ? Locale.getDefault() : errorLocale;
@@ -191,7 +231,7 @@ public final class OpencsvUtils {
      * @param errorLocale  The locale to be used for error messages. If
      *                     {@code null}, the default locale is used.
      */
-    static void verifyFormatString(String format, Class<?> callingClass, Locale errorLocale) {
+    public static void verifyFormatString(String format, Class<?> callingClass, Locale errorLocale) {
         Locale exceptionLocale = errorLocale == null ? Locale.getDefault() : errorLocale;
         try {
             if(StringUtils.isNotEmpty(format)) {

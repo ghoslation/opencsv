@@ -40,6 +40,7 @@ import java.lang.annotation.*;
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
+@Repeatable(CsvNumbers.class)
 public @interface CsvNumber {
 
     /**
@@ -76,4 +77,29 @@ public @interface CsvNumber {
      * @since 5.0
      */
     String writeFormat() default "";
+
+    /**
+     * A profile can be used to annotate the same field differently for
+     * different inputs or outputs.
+     * <p>Perhaps you have multiple input sources, and they all use different
+     * header names or positions for the same data. With profiles, you don't
+     * have to create different beans with the same fields and different
+     * annotations for each input. Simply annotate the same field multiple
+     * times and specify the profile when you parse the input.</p>
+     * <p>The same applies to output: if you want to be able to represent the
+     * same data in multiple CSV formats (that is, with different headers or
+     * orders), annotate the bean fields multiple times with different profiles
+     * and specify which profile you want to use on writing.</p>
+     * <p>Results are undefined if profile names are not unique.</p>
+     * <p>If the same configuration applies to multiple profiles, simply list
+     * all applicable profile names here. This parameter is an array of
+     * strings.</p>
+     * <p>The empty string, which is the default value, specifies the default
+     * profile and will be used if no annotation for the specific profile
+     * being used can be found, or if no profile is specified.</p>
+     *
+     * @return The names of the profiles this configuration is for
+     * @since 5.4
+     */
+    String[] profiles() default "";
 }

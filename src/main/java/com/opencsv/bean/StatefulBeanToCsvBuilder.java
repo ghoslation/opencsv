@@ -18,10 +18,14 @@ package com.opencsv.bean;
 import com.opencsv.CSVWriter;
 import com.opencsv.ICSVParser;
 import com.opencsv.ICSVWriter;
+import com.opencsv.bean.exceptionhandler.CsvExceptionHandler;
+import com.opencsv.bean.exceptionhandler.ExceptionHandlerQueue;
+import com.opencsv.bean.exceptionhandler.ExceptionHandlerThrow;
 import org.apache.commons.collections4.ListValuedMap;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Writer;
 import java.lang.reflect.Field;
@@ -45,11 +49,12 @@ public class StatefulBeanToCsvBuilder<T> {
     private MappingStrategy<T> mappingStrategy = null;
     private final Writer writer;
     private final ICSVWriter csvWriter;
-    private boolean throwExceptions = true;
+    private CsvExceptionHandler exceptionHandler = new ExceptionHandlerThrow();
     private boolean orderedResults = true;
     private Locale errorLocale = Locale.getDefault();
     private boolean applyQuotesToAll = true;
     private final ListValuedMap<Class<?>, Field> ignoredFields = new ArrayListValuedHashMap<>();
+    private String profile = StringUtils.EMPTY;
     
     /**
      * Default constructor - Being stateful the writer is required by the builder at the start and not added in later.
@@ -132,13 +137,50 @@ public class StatefulBeanToCsvBuilder<T> {
     }
 
     /**
+     * Sets the handler for recoverable exceptions that arise during the
+     * processing of records.
+     * <p>This is a convenience function and is maintained for backwards
+     * compatibility. Passing in {@code true} is equivalent to
+     * {@code withExceptionHandler(new ExceptionHandlerThrow())}
+     * and {@code false} is equivalent to
+     * {@code withExceptionHandler(new ExceptionHandlerQueue())}</p>
+     * <p>Please note that if both this method and
+     * {@link #withExceptionHandler(CsvExceptionHandler)} are called,
+     * the last call wins.</p>
+     * @see #withExceptionHandler(CsvExceptionHandler)
      * @param throwExceptions Whether or not exceptions should be thrown while
      *   writing a CSV file. If not, they may be retrieved later by calling
      *   {@link com.opencsv.bean.StatefulBeanToCsv#getCapturedExceptions() }.
      * @return this
      */
     public StatefulBeanToCsvBuilder<T> withThrowExceptions(boolean throwExceptions) {
-        this.throwExceptions = throwExceptions;
+        if(throwExceptions) {
+            exceptionHandler = new ExceptionHandlerThrow();
+        }
+        else {
+            exceptionHandler = new ExceptionHandlerQueue();
+        }
+        return this;
+    }
+
+    /**
+     * Sets the handler for recoverable exceptions raised during processing of
+     * records.
+     * <p>If neither this method nor {@link #withThrowExceptions(boolean)} is
+     * called, the default exception handler is
+     * {@link ExceptionHandlerThrow}.</p>
+     * <p>Please note that if both this method and
+     * {@link #withThrowExceptions(boolean)} are called, the last call wins.</p>
+     *
+     * @param exceptionHandler The exception handler to be used. If {@code null},
+     *                this method does nothing.
+     * @return {@code this}
+     * @since 5.2
+     */
+    public StatefulBeanToCsvBuilder<T> withExceptionHandler(CsvExceptionHandler exceptionHandler) {
+        if(exceptionHandler != null) {
+            this.exceptionHandler = exceptionHandler;
+        }
         return this;
     }
     
@@ -209,7 +251,20 @@ public class StatefulBeanToCsvBuilder<T> {
         }
         return this;
     }
-    
+
+    /**
+     * Selects a profile for deciding which configurations to use for the bean
+     * fields.
+     *
+     * @param profile The name of the profile to be used
+     * @return {@code this}
+     * @since 5.4
+     */
+    public StatefulBeanToCsvBuilder<T> withProfile(String profile) {
+        this.profile = profile;
+        return this;
+    }
+
     /**
      * Builds a StatefulBeanToCsv from the information provided, filling in
      * default values where none have been specified.
@@ -219,11 +274,11 @@ public class StatefulBeanToCsvBuilder<T> {
         StatefulBeanToCsv<T> sbtcsv;
         if (writer != null) {
             sbtcsv = new StatefulBeanToCsv<>(escapechar, lineEnd,
-                    mappingStrategy, quotechar, separator, throwExceptions,
-                    writer, applyQuotesToAll, ignoredFields);
+                    mappingStrategy, quotechar, separator, exceptionHandler,
+                    writer, applyQuotesToAll, ignoredFields, profile);
         } else {
-            sbtcsv = new StatefulBeanToCsv<>(mappingStrategy, throwExceptions,
-                    applyQuotesToAll, csvWriter, ignoredFields);
+            sbtcsv = new StatefulBeanToCsv<>(mappingStrategy, exceptionHandler,
+                    applyQuotesToAll, csvWriter, ignoredFields, profile);
         }
 
         sbtcsv.setOrderedResults(orderedResults);

@@ -98,6 +98,8 @@ public abstract class AbstractCSVParser implements ICSVParser {
     protected boolean isSurroundWithQuotes(String value, boolean forceSurround) {
         if (value == null) {
             return nullFieldIndicator.equals(CSVReaderNullFieldIndicator.EMPTY_QUOTES);
+        } else if (value.isEmpty() && nullFieldIndicator.equals(CSVReaderNullFieldIndicator.EMPTY_SEPARATORS)) {
+            return true;
         }
 
         return forceSurround || value.contains(Character.toString(getSeparator())) || value.contains(NEWLINE);

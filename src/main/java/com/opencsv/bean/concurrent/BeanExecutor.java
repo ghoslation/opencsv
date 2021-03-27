@@ -1,6 +1,9 @@
 package com.opencsv.bean.concurrent;
 
 import com.opencsv.bean.MappingStrategy;
+import com.opencsv.bean.exceptionhandler.CsvExceptionHandler;
+
+import java.util.Locale;
 
 /**
  * A specific derivative of {@link IntolerantThreadPoolExecutor} intended for
@@ -15,8 +18,11 @@ public class BeanExecutor<T> extends IntolerantThreadPoolExecutor<String[]> {
     /**
      * The only constructor available for this class.
      * @param orderedResults Whether order should be preserved in the results
+     * @param errorLocale The locale to use for error messages
      */
-    public BeanExecutor(boolean orderedResults) {super(orderedResults);}
+    public BeanExecutor(boolean orderedResults, Locale errorLocale) {
+        super(orderedResults, errorLocale);
+    }
 
     /**
      * Submit one bean for conversion.
@@ -24,17 +30,21 @@ public class BeanExecutor<T> extends IntolerantThreadPoolExecutor<String[]> {
      * @param lineNumber Which record in the output file is being processed
      * @param mappingStrategy The mapping strategy to be used
      * @param bean The bean to be transformed into a line of output
-     * @param throwExceptions Whether exceptions should be thrown or captured
-     *   for later processing
+     * @param exceptionHandler The handler for exceptions thrown during record
+     *                         processing
      */
     public void submitBean(
             long lineNumber, MappingStrategy<T> mappingStrategy,
-            T bean, boolean throwExceptions) {
+            T bean, CsvExceptionHandler exceptionHandler) {
+        if (accumulateThread != null) {
+            expectedRecords.add(lineNumber);
+        }
         try {
             execute(new ProcessCsvBean<>(lineNumber, mappingStrategy, bean, resultQueue,
-                    thrownExceptionsQueue, throwExceptions));
+                    thrownExceptionsQueue, expectedRecords, exceptionHandler));
         } catch (Exception e) {
             if(accumulateThread != null) {
+                expectedRecords.remove(lineNumber);
                 accumulateThread.setMustStop(true);
             }
             throw e;

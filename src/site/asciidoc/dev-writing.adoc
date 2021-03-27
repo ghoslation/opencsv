@@ -5,9 +5,9 @@ as possible for you, our users.
 
 There are three methods of writing CSV data:
 
-   * Writing from an array of strings
-   * Writing from a list of beans
-   * Writing from an SQL ResultSet
+* Writing from an array of strings
+* Writing from a list of beans
+* Writing from an SQL ResultSet
 
 ==== Writing from an array of strings
 
@@ -33,7 +33,7 @@ There is a constructor argument for this purpose.
 ==== Writing from a list of beans
 The easiest way to write CSV files will in most cases be StatefulBeanToCsv,
 which is simplest to create with StatefulBeanToCsvBuilder, and which is thus
-named because there used to be a BeanToCsv. Thankfully, no more.
+named because there used to be a BeanToCsv.Thankfully, no more.
 [source, java]
 ----
      // List<MyBean> beans comes from somewhere earlier in your code.
@@ -47,7 +47,7 @@ Notice, please, we did not tell opencsv what kind of bean we are writing or what
 mapping strategy is to be used. opencsv determines these things automatically.
 Annotations are not even strictly necessary: if there are no annotations,
 opencsv assumes you want to write the whole bean using the header name mapping
-strategy and uses the field names as the column headers. Naturally, the mapping
+strategy and uses the field names as the column headers.Naturally, the mapping
 strategy can be dictated, if necessary, through
 StatefulBeanToCsvBuilder.withMappingStrategy(), or the constructor for
 StatefulBeanToCsv.
@@ -58,15 +58,17 @@ field should be formatted if simply writing the bean field value is not enough.
 Please see the Javadoc for the annotations for details.
 
 Just as in reading into beans, there is a performance trade-off while writing
-that is left in your hands: ordered vs. unordered data. If the order of the data
+that is left in your hands: ordered vs. unordered data.If the order of the data
 written to the output and the order of any exceptions captured during processing
 do not matter to you, use StatefulBeanToCsv.withOrderedResults(false) to obtain
 slightly better performance.
 
+Again, just as in reading into beans, Java 8's Optional is supported.
+
 ===== Changing the write order
 If you do nothing, the order of the columns on writing will be ascending
 according to position for column index-based mappings, and ascending according
-to name for header name-based mappings. You can change this order, if you must.
+to name for header name-based mappings.You can change this order, if you must.
 [source, java]
 ----
       // List<MyBean> beans comes from somewhere earlier in your code.
@@ -80,31 +82,57 @@ to name for header name-based mappings. You can change this order, if you must.
       beanToCsv.write(beans);
       writer.close();
 ----
-The same method exists for ColumnPositionMappingStrategy. If you wish to use
+The same method exists for ColumnPositionMappingStrategy.If you wish to use
 your own ordering, you must instantiate your own mapping strategy and pass it
 in to StatefulBeanToCsvBuilder.
 
 We expect there will be plenty of people who find using a Comparator
 uncomfortable, because they have an exact order that they need that has nothing
-to do with any kind of rule-based ordering. For these people we have included
-com.opencsv.bean.comparator.LiteralComparator. It is instantiated with an array
+to do with any kind of rule-based ordering.For these people we have included
+com.opencsv.bean.comparator.LiteralComparator.It is instantiated with an array
 of strings for header name mapping or integers for column position mapping that
-define the order desired. Please note, though, that LiteralComparator is
+define the order desired.Please note, though, that LiteralComparator is
 deprecated as of opencsv 5.0 because it is easily replaced by a few Comparators
-from Apache Commons Collections when strung together. Commons Collections is a
-dependency of opencsv, so it is already in your classpath. You are strongly
+from Apache Commons Collections when strung together.Commons Collections is a
+dependency of opencsv, so it is already in your classpath.You are strongly
 encouraged to examine the Comparators Commons Collections makes available to
-you. They are quite flexible and very useful.
+you.They are quite flexible and very useful.
 
 ==== From a database table
 
 Here's a nifty little trick for those of you out there who often work directly
 with databases and want to write the results of a query directly to a CSV file.
-Sean Sullivan added a neat feature to CSVWriter so you can pass writeAll() a
-ResultSet from an SQL query.
+Sean Sullivan added a neat feature to CSVWriter so you can pass writeAll() a ResultSet from an SQL query.
 
-[source, java]
+[source,java]
 ----
      java.sql.ResultSet myResultSet = . . .
      writer.writeAll(myResultSet, includeHeaders);
+----
+
+The defaults for date and dateTime are in the ResultSetHelperService
+
+[source,java]
+----
+     static final String DEFAULT_DATE_FORMAT = "dd-MMM-yyyy";
+     static final String DEFAULT_TIMESTAMP_FORMAT = "dd-MMM-yyyy HH:mm:ss";
+----
+
+For those not wanting to use the default formats you can define your own ResultSetHelperService and modify the formats for date and/or dateTime.
+
+[source,java]
+----
+     ResultSetHelperService service = new ResultSetHelperService();
+     service.setDateFormat("mm/dd/yy");
+     service.setDateTimeFormat("mm/dd/yy HH:mm");
+
+     StringWriter writer = new StringWriter(); // put your own writer here
+     CSVWriterBuilder builder = new CSVWriterBuilder(writer);
+
+     ICSVWriter csvWriter = builder
+                               .withResultSetHelper(service)
+                               .build();
+
+     java.sql.ResultSet myResultSet = . . .
+     csvWriter.writeAll(myResultSet, includeHeaders);
 ----

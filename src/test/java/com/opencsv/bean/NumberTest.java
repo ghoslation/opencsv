@@ -15,7 +15,7 @@
  */
 package com.opencsv.bean;
 
-import com.opencsv.bean.mocks.*;
+import com.opencsv.bean.mocks.number.*;
 import com.opencsv.exceptions.CsvBadConverterException;
 import com.opencsv.exceptions.CsvDataTypeMismatchException;
 import com.opencsv.exceptions.CsvException;
@@ -326,12 +326,14 @@ public class NumberTest {
     /**
      * Tests writing numerical values using {@link CsvNumber} and the column
      * position mapping strategy.
-     * <p>Also incidentally tests:
-     * <ul><li>Using a different format string for writing than reading</li>
+     * Also incidentally tests:
+     * <ul>
+     * <li>Using a different format string for writing than reading</li>
      * <li>Using a different format string for writing, but leaving
-     * {@link CsvNumber#writeFormatEqualsReadFormat()} {@code true}</li></ul></p>
+     * {@link CsvNumber#writeFormatEqualsReadFormat()} {@code true}</li>
+     * </ul>
      *
-     * @throws IOException Never thrown
+     * @throws IOException  Never thrown
      * @throws CsvException Never thrown
      */
     @Test

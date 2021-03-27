@@ -16,7 +16,7 @@
 package com.opencsv.bean.mocks.split;
 
 import com.opencsv.bean.CsvBindAndSplitByPosition;
-import java.util.Currency;
+import java.util.TimeZone;
 import java.util.List;
 
 /**
@@ -25,14 +25,14 @@ import java.util.List;
  */
 public class UnknownElementType {
     
-    @CsvBindAndSplitByPosition(elementType = Currency.class, position = 0)
-    private List<Currency> l;
+    @CsvBindAndSplitByPosition(elementType = TimeZone.class, position = 0)
+    private List<TimeZone> l;
 
-    public List<Currency> getL() {
+    public List<TimeZone> getL() {
         return l;
     }
 
-    public void setL(List<Currency> l) {
+    public void setL(List<TimeZone> l) {
         this.l = l;
     }
 }

@@ -16,6 +16,7 @@
 package com.opencsv.bean;
 
 import com.opencsv.ICSVParser;
+import com.opencsv.bean.util.OpencsvUtils;
 import com.opencsv.exceptions.CsvBadConverterException;
 import com.opencsv.exceptions.CsvConstraintViolationException;
 import com.opencsv.exceptions.CsvDataTypeMismatchException;
@@ -87,7 +88,7 @@ public class BeanFieldSingleValue<T, I> extends AbstractBeanField<T, I> {
     @Override
     protected Object convert(String value) throws CsvDataTypeMismatchException, CsvConstraintViolationException {
         String convertValue = value;
-        if(capture != null) {
+        if(capture != null && value != null) {
             Matcher m = capture.matcher(value);
             if(m.matches()) {
                 convertValue = m.group(1);

@@ -326,4 +326,60 @@ public class ResultSetColumnNameHelperServiceTest {
         String[] columnValues = service.getColumnValues(resultSet, false, null, customFormat);
         assertArrayEquals(expectedValues, columnValues);
     }
+
+    @DisplayName("Bug#215: DateTimeFormat that are set are not being used.")
+    @Test
+    public void setDateTimeFormat() throws SQLException, IOException {
+        Timestamp date = new Timestamp(new GregorianCalendar(2009, 11, 15, 12, 0, 0).getTimeInMillis());
+        long dateInMilliSeconds = date.getTime();
+        String customFormat = "mm/dd/yy HH:mm:ss";
+        SimpleDateFormat timeFormat = new SimpleDateFormat(customFormat);
+
+        String[] realColumnNames = {"Timestamp", "Null"};
+        String[] realValues = {Long.toString(dateInMilliSeconds), null};
+
+        String[] desiredColumnNames = {"Timestamp"};
+        String[] desiredColumnHeaders = {"A timestamp"};
+
+        String[] expectedValues = {timeFormat.format(date)};
+        int[] expectedTypes = {Types.TIMESTAMP, Types.TIMESTAMP};
+
+        ResultSetMetaData metaData = MockResultSetMetaDataBuilder.buildMetaData(realColumnNames, expectedTypes);
+        ResultSet resultSet = MockResultSetBuilder.buildResultSet(metaData, realValues, expectedTypes);
+
+        ResultSetColumnNameHelperService service = new ResultSetColumnNameHelperService();
+        service.setDateTimeFormat(customFormat);
+        service.setColumnNames(desiredColumnNames, desiredColumnHeaders);
+
+        String[] columnValues = service.getColumnValues(resultSet, false);
+        assertArrayEquals(expectedValues, columnValues);
+    }
+
+    @DisplayName("Bug#215: DateTime that are set are not being used.")
+    @Test
+    public void setDateFormat() throws SQLException, IOException {
+        Timestamp date = new Timestamp(new GregorianCalendar(2009, 11, 15).getTimeInMillis());
+        long dateInMilliSeconds = date.getTime();
+        String customFormat = "mm/dd/yy";
+        SimpleDateFormat timeFormat = new SimpleDateFormat(customFormat);
+
+        String[] realColumnNames = {"Timestamp", "Null"};
+        String[] realValues = {Long.toString(dateInMilliSeconds), null};
+
+        String[] desiredColumnNames = {"Timestamp"};
+        String[] desiredColumnHeaders = {"A timestamp"};
+
+        String[] expectedValues = {timeFormat.format(date)};
+        int[] expectedTypes = {Types.DATE, Types.DATE};
+
+        ResultSetMetaData metaData = MockResultSetMetaDataBuilder.buildMetaData(realColumnNames, expectedTypes);
+        ResultSet resultSet = MockResultSetBuilder.buildResultSet(metaData, realValues, expectedTypes);
+
+        ResultSetColumnNameHelperService service = new ResultSetColumnNameHelperService();
+        service.setDateFormat(customFormat);
+        service.setColumnNames(desiredColumnNames, desiredColumnHeaders);
+
+        String[] columnValues = service.getColumnValues(resultSet, false);
+        assertArrayEquals(expectedValues, columnValues);
+    }
 }

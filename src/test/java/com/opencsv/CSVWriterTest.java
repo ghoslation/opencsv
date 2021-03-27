@@ -580,7 +580,7 @@ public class CSVWriterTest {
       assertEquals("v1,v2,v3\n", result);
       assertEquals(1, linesWritten);
    }
-   
+
    @Test
    public void testMultiLineResultSetWithoutHeaders() throws SQLException, IOException {
       String[] header = {"Foo", "Bar", "baz"};
@@ -707,19 +707,19 @@ public class CSVWriterTest {
    public void testIOException() throws IOException {
       Writer writer = mock(Writer.class);
       doThrow(IOException.class).when(writer).write(anyString());
-      
+
       // Using writeNext()
       ICSVWriter csvWriter = new CSVWriter(writer);
       csvWriter.writeNext(SIMPLE_STRING_ARRAY);
       csvWriter.close();
       assertTrue(csvWriter.checkError());
-      
+
       // Using writeAll(Iterable<String[]>, boolean)
       csvWriter = new CSVWriter(writer);
       csvWriter.writeAll(Collections.singletonList(SIMPLE_STRING_ARRAY), false);
       csvWriter.close();
       assertTrue(csvWriter.checkError());
-      
+
       // Using writeAll(Iterable<String[]>)
       csvWriter = new CSVWriter(writer);
       csvWriter.writeAll(Collections.singletonList(SIMPLE_STRING_ARRAY));
@@ -741,5 +741,91 @@ public class CSVWriterTest {
       csvWriter.close();
 
       assertTrue(csvWriter.checkError());
+   }
+
+   @Test
+   public void getExceptionReturnsException() throws IOException {
+      Writer writer = mock(Writer.class);
+      AbstractCSVWriter csvWriter = spy(new CSVWriter(writer));
+
+      String exceptionMessage = "Exception on writing csv";
+      IOException ioException = new IOException(exceptionMessage);
+      doThrow(ioException).when(csvWriter).writeNext(any(String[].class), anyBoolean(), any(StringBuilder.class));
+
+      csvWriter.writeNext(SIMPLE_STRING_ARRAY);
+
+      csvWriter.close();
+
+      verify(csvWriter).writeNext(any(String[].class), anyBoolean(), any(StringBuilder.class));
+
+      IOException storedException = csvWriter.getException();
+      assertEquals("Expected Exception is not returned by getException", ioException, storedException);
+   }
+
+   @Test
+   public void getExceptionReturnsExceptionUsingPrintWriter() throws IOException {
+      Writer writer = mock(Writer.class);
+      PrintWriter printWriter = new PrintWriter(writer);
+      AbstractCSVWriter csvWriter = spy(new CSVWriter(printWriter));
+
+      String exceptionMessage = "Exception on writing csv";
+      IOException ioException = new IOException(exceptionMessage);
+      doThrow(ioException).when(csvWriter).writeNext(any(String[].class), anyBoolean(), any(StringBuilder.class));
+
+      csvWriter.writeNext(SIMPLE_STRING_ARRAY);
+
+      csvWriter.close();
+
+      verify(csvWriter).writeNext(any(String[].class), anyBoolean(), any(StringBuilder.class));
+
+      IOException storedException = csvWriter.getException();
+      assertEquals("Expected Exception is not returned by getException", ioException, storedException);
+   }
+
+   @Test
+   public void resetException() throws IOException {
+      Writer writer = mock(Writer.class);
+      doThrow(IOException.class).when(writer).write(anyString(), anyInt(), anyInt());
+      AbstractCSVWriter csvWriter = spy(new CSVWriter(writer));
+
+      String exceptionMessage = "Exception on writing csv";
+      IOException ioException = new IOException(exceptionMessage);
+      doThrow(ioException).when(csvWriter).writeNext(any(String[].class), anyBoolean(), any(StringBuilder.class));
+
+      csvWriter.writeNext(SIMPLE_STRING_ARRAY);
+
+      IOException storedException = csvWriter.getException();
+      assertEquals("Expected Exception is not returned by getException", ioException, storedException);
+
+      csvWriter.resetError();
+
+      assertNull("Exception has not been removed", csvWriter.getException());
+
+      csvWriter.close();
+
+      verify(csvWriter).writeNext(any(String[].class), anyBoolean(), any(StringBuilder.class));
+   }
+
+   @Test
+   public void resetError() throws IOException {
+      Writer writer = mock(Writer.class);
+      doThrow(IOException.class).when(writer).write(anyString(), anyInt(), anyInt());
+      AbstractCSVWriter csvWriter = spy(new CSVWriter(writer));
+
+      String exceptionMessage = "Exception on writing csv";
+      IOException ioException = new IOException(exceptionMessage);
+      doThrow(ioException).when(csvWriter).writeNext(any(String[].class), anyBoolean(), any(StringBuilder.class));
+
+      csvWriter.writeNext(SIMPLE_STRING_ARRAY);
+
+      assertTrue("Error has not occurred initially", csvWriter.checkError());
+
+      csvWriter.resetError();
+
+      assertFalse("Error has not been removed", csvWriter.checkError());
+
+      csvWriter.close();
+
+      verify(csvWriter).writeNext(any(String[].class), anyBoolean(), any(StringBuilder.class));
    }
 }

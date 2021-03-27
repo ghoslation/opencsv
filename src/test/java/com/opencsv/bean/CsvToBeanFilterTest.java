@@ -66,7 +66,7 @@ public class CsvToBeanFilterTest {
       }
    }
 
-   @Deprecated
+   // This would be better done with the BeanVerifier.
    private class NonProductionFilter implements CsvToBeanFilter {
 
       @Override

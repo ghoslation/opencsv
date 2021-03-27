@@ -4,9 +4,7 @@ import com.opencsv.CSVReader;
 import com.opencsv.ICSVParser;
 import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
 import org.apache.commons.collections4.ListValuedMap;
-import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.ObjectUtils;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -70,7 +68,7 @@ public class ColumnPositionMappingStrategy<T> extends AbstractMappingStrategy<St
                     .getString("type.unset"));
         }
 
-        String[] firstLine = ObjectUtils.defaultIfNull(reader.peek(), ArrayUtils.EMPTY_STRING_ARRAY);
+        String[] firstLine = ArrayUtils.nullToEmpty(reader.peek());
         fieldMap.setMaxIndex(firstLine.length - 1);
         if (!columnsExplicitlySet) {
             headerIndex.clear();
@@ -165,87 +163,135 @@ public class ColumnPositionMappingStrategy<T> extends AbstractMappingStrategy<St
     }
 
     /**
+     * Register a binding between a bean field and a custom converter.
+     *
+     * @param annotation The annotation attached to the bean field
+     * @param localType The class/type in which the field resides
+     * @param localField The bean field
+     */
+    private void registerCustomBinding(CsvCustomBindByPosition annotation, Class<?> localType, Field localField) {
+        @SuppressWarnings("unchecked")
+        Class<? extends AbstractBeanField<T, Integer>> converter = (Class<? extends AbstractBeanField<T, Integer>>)annotation.converter();
+        BeanField<T, Integer> bean = instantiateCustomConverter(converter);
+        bean.setType(localType);
+        bean.setField(localField);
+        bean.setRequired(annotation.required());
+        fieldMap.put(annotation.position(), bean);
+    }
+
+    /**
+     * Register a binding between a bean field and a collection converter that
+     * splits input into multiple values.
+     *
+     * @param annotation The annotation attached to the bean field
+     * @param localType The class/type in which the field resides
+     * @param localField The bean field
+     */
+    private void registerSplitBinding(CsvBindAndSplitByPosition annotation, Class<?> localType, Field localField) {
+        String fieldLocale = annotation.locale();
+        String fieldWriteLocale = annotation.writeLocaleEqualsReadLocale()
+                ? fieldLocale
+                : annotation.writeLocale();
+        Class<?> elementType = annotation.elementType();
+        CsvConverter converter = determineConverter(localField, elementType,
+                fieldLocale, fieldWriteLocale, annotation.converter());
+        fieldMap.put(annotation.position(), new BeanFieldSplit<>(
+                localType, localField, annotation.required(), errorLocale, converter,
+                annotation.splitOn(), annotation.writeDelimiter(),
+                annotation.collectionType(), elementType, annotation.capture(),
+                annotation.format()));
+    }
+
+    /**
+     * Register a binding between a bean field and a multi-valued converter
+     * that joins values from multiple columns.
+     *
+     * @param annotation The annotation attached to the bean field
+     * @param localType The class/type in which the field resides
+     * @param localField The bean field
+     */
+    private void registerJoinBinding(CsvBindAndJoinByPosition annotation, Class<?> localType, Field localField) {
+        String fieldLocale = annotation.locale();
+        String fieldWriteLocale = annotation.writeLocaleEqualsReadLocale()
+                ? fieldLocale
+                : annotation.writeLocale();
+        CsvConverter converter = determineConverter(localField, annotation.elementType(),
+                fieldLocale, fieldWriteLocale, annotation.converter());
+        fieldMap.putComplex(annotation.position(), new BeanFieldJoinIntegerIndex<>(
+                localType, localField, annotation.required(), errorLocale, converter,
+                annotation.mapType(), annotation.capture(), annotation.format()));
+    }
+
+    /**
+     * Register a binding between a bean field and a simple converter.
+     *
+     * @param annotation The annotation attached to the bean field
+     * @param localType The class/type in which the field resides
+     * @param localField The bean field
+     */
+    private void registerBinding(CsvBindByPosition annotation, Class<?> localType, Field localField) {
+        String fieldLocale = annotation.locale();
+        String fieldWriteLocale = annotation.writeLocaleEqualsReadLocale()
+                ? fieldLocale
+                : annotation.writeLocale();
+        CsvConverter converter = determineConverter(localField, localField.getType(), fieldLocale, fieldWriteLocale, null);
+        fieldMap.put(annotation.position(), new BeanFieldSingleValue<>(
+                localType, localField, annotation.required(), errorLocale,
+                converter, annotation.capture(), annotation.format()));
+    }
+
+    /**
      * Creates a map of annotated fields in the bean to be processed.
      * <p>This method is called by {@link #loadFieldMap()} when at least one
      * relevant annotation is found on a member variable.</p>
      */
     @Override
     protected void loadAnnotatedFieldMap(ListValuedMap<Class<?>, Field> fields) {
-        boolean required;
         for (Map.Entry<Class<?>, Field> classAndField : fields.entries()) {
             Class<?> localType = classAndField.getKey();
             Field localField = classAndField.getValue();
-            String fieldLocale, fieldWriteLocale, capture, format;
 
             // Custom converters always have precedence.
-            if (localField.isAnnotationPresent(CsvCustomBindByPosition.class)) {
-                CsvCustomBindByPosition annotation = localField
-                        .getAnnotation(CsvCustomBindByPosition.class);
-                @SuppressWarnings("unchecked")
-                Class<? extends AbstractBeanField<T, Integer>> converter = (Class<? extends AbstractBeanField<T, Integer>>)annotation.converter();
-                BeanField<T, Integer> bean = instantiateCustomConverter(converter);
-                bean.setType(localType);
-                bean.setField(localField);
-                required = annotation.required();
-                bean.setRequired(required);
-                fieldMap.put(annotation.position(), bean);
+            if (localField.isAnnotationPresent(CsvCustomBindByPosition.class)
+                    || localField.isAnnotationPresent(CsvCustomBindByPositions.class)) {
+                CsvCustomBindByPosition annotation = selectAnnotationForProfile(
+                        localField.getAnnotationsByType(CsvCustomBindByPosition.class),
+                        CsvCustomBindByPosition::profiles);
+                if (annotation != null) {
+                    registerCustomBinding(annotation, localType, localField);
+                }
             }
 
             // Then check for a collection
-            else if (localField.isAnnotationPresent(CsvBindAndSplitByPosition.class)) {
-                CsvBindAndSplitByPosition annotation = localField.getAnnotation(CsvBindAndSplitByPosition.class);
-                required = annotation.required();
-                fieldLocale = annotation.locale();
-                fieldWriteLocale = annotation.writeLocaleEqualsReadLocale()
-                        ? fieldLocale
-                        : annotation.writeLocale();
-                String splitOn = annotation.splitOn();
-                String writeDelimiter = annotation.writeDelimiter();
-                Class<? extends Collection> collectionType = annotation.collectionType();
-                Class<?> elementType = annotation.elementType();
-                Class<? extends AbstractCsvConverter> splitConverter = annotation.converter();
-                capture = annotation.capture();
-                format = annotation.format();
-
-                CsvConverter converter = determineConverter(localField, elementType, fieldLocale, fieldWriteLocale, splitConverter);
-                fieldMap.put(annotation.position(), new BeanFieldSplit<>(
-                        localType, localField, required, errorLocale, converter, splitOn,
-                        writeDelimiter, collectionType, capture, format));
+            else if (localField.isAnnotationPresent(CsvBindAndSplitByPosition.class)
+                    || localField.isAnnotationPresent(CsvBindAndSplitByPositions.class)) {
+                CsvBindAndSplitByPosition annotation = selectAnnotationForProfile(
+                        localField.getAnnotationsByType(CsvBindAndSplitByPosition.class),
+                        CsvBindAndSplitByPosition::profiles);
+                if (annotation != null) {
+                    registerSplitBinding(annotation, localType, localField);
+                }
             }
 
             // Then check for a multi-column annotation
-            else if (localField.isAnnotationPresent(CsvBindAndJoinByPosition.class)) {
-                CsvBindAndJoinByPosition annotation = localField.getAnnotation(CsvBindAndJoinByPosition.class);
-                required = annotation.required();
-                fieldLocale = annotation.locale();
-                fieldWriteLocale = annotation.writeLocaleEqualsReadLocale()
-                        ? fieldLocale
-                        : annotation.writeLocale();
-                Class<?> elementType = annotation.elementType();
-                Class<? extends MultiValuedMap> mapType = annotation.mapType();
-                Class<? extends AbstractCsvConverter> joinConverter = annotation.converter();
-                capture = annotation.capture();
-                format = annotation.format();
-
-                CsvConverter converter = determineConverter(localField, elementType, fieldLocale, fieldWriteLocale, joinConverter);
-                fieldMap.putComplex(annotation.position(), new BeanFieldJoinIntegerIndex<>(
-                        localType, localField, required, errorLocale, converter, mapType, capture, format));
+            else if (localField.isAnnotationPresent(CsvBindAndJoinByPosition.class)
+                    || localField.isAnnotationPresent(CsvBindAndJoinByPositions.class)) {
+                CsvBindAndJoinByPosition annotation = selectAnnotationForProfile(
+                        localField.getAnnotationsByType(CsvBindAndJoinByPosition.class),
+                        CsvBindAndJoinByPosition::profiles);
+                if (annotation != null) {
+                    registerJoinBinding(annotation, localType, localField);
+                }
             }
 
             // Then it must be a bind by position.
             else {
-                CsvBindByPosition annotation = localField.getAnnotation(CsvBindByPosition.class);
-                required = annotation.required();
-                fieldLocale = annotation.locale();
-                fieldWriteLocale = annotation.writeLocaleEqualsReadLocale()
-                        ? fieldLocale
-                        : annotation.writeLocale();
-                capture = annotation.capture();
-                format = annotation.format();
-                CsvConverter converter = determineConverter(localField, localField.getType(), fieldLocale, fieldWriteLocale, null);
-
-                fieldMap.put(annotation.position(), new BeanFieldSingleValue<>(
-                        localType, localField, required, errorLocale, converter, capture, format));
+                CsvBindByPosition annotation = selectAnnotationForProfile(
+                        localField.getAnnotationsByType(CsvBindByPosition.class),
+                        CsvBindByPosition::profiles);
+                if (annotation != null) {
+                    registerBinding(annotation, localType, localField);
+                }
             }
         }
     }
@@ -278,6 +324,10 @@ public class ColumnPositionMappingStrategy<T> extends AbstractMappingStrategy<St
     protected Set<Class<? extends Annotation>> getBindingAnnotations() {
         // With Java 9 this can be done more easily with Set.of()
         return new HashSet<>(Arrays.asList(
+                CsvBindByPositions.class,
+                CsvCustomBindByPositions.class,
+                CsvBindAndJoinByPositions.class,
+                CsvBindAndSplitByPositions.class,
                 CsvBindByPosition.class,
                 CsvCustomBindByPosition.class,
                 CsvBindAndJoinByPosition.class,

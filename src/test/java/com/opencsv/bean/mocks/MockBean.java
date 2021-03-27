@@ -1,14 +1,16 @@
 package com.opencsv.bean.mocks;
 
+import java.util.UUID;
+
 /*
  * Copyright 2007 Kyle Miller.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,6 +23,17 @@ public class MockBean {
    private String orderNumber;
    private int num;
    private double doubleNum;
+   private UUID uuid;
+
+   public MockBean() {}
+
+   public MockBean(String name, String id, String orderNumber, int num, double doubleNum) {
+      this.name = name;
+      this.id = id;
+      this.orderNumber = orderNumber;
+      this.num = num;
+      this.doubleNum = doubleNum;
+   }
 
    public String getId() {
       return id;
@@ -62,6 +75,14 @@ public class MockBean {
       this.doubleNum = doubleNum;
    }
 
+   public UUID getUuid() {
+      return uuid;
+   }
+
+   public void setUuid(UUID uuid) {
+      this.uuid = uuid;
+   }
+
    @Override
    public boolean equals(Object o) {
       if (this == o) return true;
@@ -73,6 +94,7 @@ public class MockBean {
       if (Double.compare(mockBean.getDoubleNum(), getDoubleNum()) != 0) return false;
       if (getName() != null ? !getName().equals(mockBean.getName()) : mockBean.getName() != null) return false;
       if (getId() != null ? !getId().equals(mockBean.getId()) : mockBean.getId() != null) return false;
+      if (getUuid() != null ? !getUuid().equals(mockBean.getUuid()) : mockBean.getUuid() != null) return false;
       return !(getOrderNumber() != null ? !getOrderNumber().equals(mockBean.getOrderNumber()) : mockBean.getOrderNumber() != null);
 
    }
@@ -85,6 +107,7 @@ public class MockBean {
       result = 31 * result + (getId() != null ? getId().hashCode() : 0);
       result = 31 * result + (getOrderNumber() != null ? getOrderNumber().hashCode() : 0);
       result = 31 * result + getNum();
+      result = 31 * result + (getUuid() != null ? getUuid().hashCode() : 0);
       temp = Double.doubleToLongBits(getDoubleNum());
       result = 31 * result + (int) (temp ^ (temp >>> 32));
       return result;
@@ -98,6 +121,7 @@ public class MockBean {
               ", orderNumber='" + orderNumber + '\'' +
               ", num=" + num +
               ", doubleNum=" + doubleNum +
+              ", uuid=" + uuid +
               '}';
    }
 }

@@ -9,6 +9,9 @@
         <module name="JavadocMethod">
             <property name="scope" value="package"/>
         </module>
+        <module name="MissingJavadocMethod">
+            <property name="scope" value="package"/>
+        </module>
         <module name="JavadocType"/>
         <module name="VisibilityModifier"/>
         <module name="RedundantModifier"/>
@@ -32,7 +35,9 @@
         <module name="MissingCtor"/>
         <module name="MissingOverride"/>
         <module name="MissingSwitchDefault"/>
-        <module name="NPathComplexity"/>
+        <module name="NPathComplexity">
+            <property name="severity" value="warning"/>
+        </module>
         <module name="NeedBraces"/>
         <module name="MultipleStringLiterals">
             <property name="allowedDuplicates" value="2"/>
