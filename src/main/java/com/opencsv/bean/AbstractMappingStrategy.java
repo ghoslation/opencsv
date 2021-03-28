@@ -62,7 +62,7 @@ public abstract class AbstractMappingStrategy<I, K extends Comparable<K>, C exte
 
     /** This is the class of the bean to be manipulated. */
     protected Class<? extends T> type;
-    
+
     /**
      * Maintains a bi-directional mapping between column position(s) and header
      * name.
@@ -79,6 +79,16 @@ public abstract class AbstractMappingStrategy<I, K extends Comparable<K>, C exte
 
     /** Storage for all manually excluded class/field pairs. */
     private MultiValuedMap<Class<?>, Field> ignoredFields = new ArrayListValuedHashMap<>();
+
+    /**
+     * Data columns number must equal with header columns number.
+     * By default this is {@code true}, which means an exception is thrown if
+     * the number of fields do not match the number of headers.
+     * If this is {@code false} ,which means allow the number of fields less or
+     * more than headers.
+     *
+     */
+    protected boolean strictColumnNumber = true;
 
     /** Locale for error messages. */
     protected Locale errorLocale = Locale.getDefault();
@@ -179,7 +189,7 @@ public abstract class AbstractMappingStrategy<I, K extends Comparable<K>, C exte
      * @since 4.0
      */
     protected abstract void verifyLineLength(int numberOfFields) throws CsvRequiredFieldEmptyException;
-    
+
     /**
      * Implementation will return a bean of the type of object being mapped.
      *
@@ -287,14 +297,14 @@ public abstract class AbstractMappingStrategy<I, K extends Comparable<K>, C exte
                     .getBundle(ICSVParser.DEFAULT_BUNDLE_NAME, errorLocale)
                     .getString("type.before.header"));
         }
-        
+
         // Always take what's been given or previously determined first.
         if(headerIndex.isEmpty()) {
             String[] header = getFieldMap().generateHeader(bean);
             headerIndex.initializeHeaderIndex(header);
             return header;
         }
-        
+
         // Otherwise, put headers in the right places.
         return headerIndex.getHeaderIndex();
     }
@@ -349,7 +359,7 @@ public abstract class AbstractMappingStrategy<I, K extends Comparable<K>, C exte
         }
         return (T)beanTree.get(type);
     }
-    
+
     /**
      * Sets the class type that is being mapped.
      * Also initializes the mapping between column names and bean fields
@@ -592,7 +602,7 @@ public abstract class AbstractMappingStrategy<I, K extends Comparable<K>, C exte
     @Override
     public void setErrorLocale(Locale errorLocale) {
         this.errorLocale = ObjectUtils.defaultIfNull(errorLocale, Locale.getDefault());
-        
+
         // It's very possible that setType() was called first, which creates all
         // of the BeanFields, so we need to go back through the list and correct
         // them all.
@@ -601,7 +611,19 @@ public abstract class AbstractMappingStrategy<I, K extends Comparable<K>, C exte
             getFieldMap().values().forEach(f -> f.setErrorLocale(this.errorLocale));
         }
     }
-    
+
+    /**
+     * Sets data columns number must equal with header columns number.
+     *
+     * @param strictColumnNumber set {@link true} if data columns number must equal with header columns number
+     * other wise {@link false}
+     * @since 5.4.1.1
+     */
+    @Override
+    public void setStrictColumnNumber(boolean strictColumnNumber) {
+    	this.strictColumnNumber = strictColumnNumber;
+    }
+
     /**
      * Populates the field corresponding to the column position indicated of the
      * bean passed in according to the rules of the mapping strategy.
@@ -631,7 +653,7 @@ public abstract class AbstractMappingStrategy<I, K extends Comparable<K>, C exte
             beanField.setFieldValue(subordinateBean, value, findHeader(column));
         }
     }
-    
+
     @Override
     public String[] transmuteBean(T bean) throws CsvFieldAssignmentException, CsvChainedException {
         int numColumns = headerIndex.findMaxIndex()+1;

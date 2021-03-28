@@ -51,16 +51,16 @@ import java.util.ResourceBundle;
  * <li>Otherwise, {@link HeaderColumnNameMappingStrategy} is used. This includes
  * the case when {@link CsvBindByName} or {@link CsvCustomBindByName} are being
  * used. The annotations will automatically be recognized.</li></ol>
- * 
+ *
  * @param <T> Type of the bean to be populated
  * @author Andrew Rucker Jones
  * @since 3.9
  */
 public class CsvToBeanBuilder<T> {
-    
+
    /** @see CsvToBean#mappingStrategy */
    private MappingStrategy<? extends T> mappingStrategy = null;
-   
+
    /**
     * A CSVReader will be built out of this {@link java.io.Reader}.
     * @see CsvToBean#csvReader
@@ -71,33 +71,33 @@ public class CsvToBeanBuilder<T> {
      * Allow the user to pass in a prebuilt/custom {@link com.opencsv.CSVReader}.
      */
     private final CSVReader csvReader;
-   
+
    /** @see CsvToBean#filter */
    private CsvToBeanFilter filter = null;
-   
+
    /**
     * @see CsvToBean#throwExceptions
     */
    private CsvExceptionHandler exceptionHandler = null;
-   
+
    /** @see com.opencsv.CSVParser#nullFieldIndicator */
    private CSVReaderNullFieldIndicator nullFieldIndicator = null;
-   
+
    /** @see com.opencsv.CSVReader#keepCR */
    private boolean keepCR;
-   
+
    /** @see com.opencsv.CSVReader#skipLines */
    private Integer skipLines = null;
-   
+
    /** @see com.opencsv.CSVReader#verifyReader */
    private Boolean verifyReader = null;
-   
+
    /** @see com.opencsv.CSVParser#separator */
    private Character separator = null;
-   
+
    /** @see com.opencsv.CSVParser#quotechar */
    private Character quoteChar = null;
-   
+
    /** @see com.opencsv.CSVParser#escape */
    private Character escapeChar = null;
 
@@ -140,6 +140,11 @@ public class CsvToBeanBuilder<T> {
      * @see com.opencsv.bean.CsvToBean#ignoreEmptyLines
      */
     private boolean ignoreEmptyLines = false;
+
+    /**
+     * @see com.opencsv.bean.AbstractMappingStrategy#strictColumnNumber
+     */
+    private boolean strictColumnNumber = true;
 
     /**
      * @see com.opencsv.bean.CsvToBean#errorLocale
@@ -236,6 +241,7 @@ public class CsvToBeanBuilder<T> {
         if(!ignoredFields.isEmpty()) {
             mappingStrategy.ignoreFields(ignoredFields);
         }
+        mappingStrategy.setStrictColumnNumber(strictColumnNumber);
         bean.setMappingStrategy(mappingStrategy);
 
         // The error locale comes at the end so it can be propagated through all
@@ -245,7 +251,7 @@ public class CsvToBeanBuilder<T> {
 
         return bean;
     }
-    
+
     /**
      * Builds a {@link CSVParser} from the information provided to this builder.
      * This is an intermediate step in building the {@link CsvToBean}.
@@ -275,10 +281,10 @@ public class CsvToBeanBuilder<T> {
             csvpb.withIgnoreQuotations(ignoreQuotations);
         }
         csvpb.withErrorLocale(errorLocale);
-        
+
         return csvpb.build();
     }
-    
+
     /**
      * Builds a {@link CSVReader} from the information provided to this builder.
      * This is an intermediate step in building the {@link CsvToBean}.
@@ -301,7 +307,7 @@ public class CsvToBeanBuilder<T> {
         csvrb.withErrorLocale(errorLocale);
         return csvrb.build();
     }
-    
+
     /**
      * @see CsvToBean#setMappingStrategy(com.opencsv.bean.MappingStrategy)
      * @param mappingStrategy Please see the "See Also" section
@@ -358,7 +364,7 @@ public class CsvToBeanBuilder<T> {
         }
         return this;
     }
-    
+
     /**
      * @param indicator Which field content will be returned as null: EMPTY_SEPARATORS, EMPTY_QUOTES,
      *                           BOTH, NEITHER (default)
@@ -368,7 +374,7 @@ public class CsvToBeanBuilder<T> {
         this.nullFieldIndicator = indicator;
         return this;
     }
-    
+
     /**
      * @param keepCR True to keep carriage returns in data read, false otherwise
      * @return {@code this}
@@ -377,9 +383,9 @@ public class CsvToBeanBuilder<T> {
         this.keepCR = keepCR;
         return this;
     }
-    
+
     /**
-     * @see CSVReaderBuilder#withVerifyReader(boolean) 
+     * @see CSVReaderBuilder#withVerifyReader(boolean)
      * @param verifyReader Please see the "See Also" section
      * @return {@code this}
      */
@@ -387,9 +393,9 @@ public class CsvToBeanBuilder<T> {
         this.verifyReader = verifyReader;
         return this;
     }
-    
+
     /**
-     * @see CSVReaderBuilder#withSkipLines(int) 
+     * @see CSVReaderBuilder#withSkipLines(int)
      * @param skipLines Please see the "See Also" section
      * @return {@code this}
      */
@@ -398,7 +404,7 @@ public class CsvToBeanBuilder<T> {
       this.skipLines = skipLines;
       return this;
    }
-    
+
     /**
      * @see CSVParser#CSVParser(char, char, char, boolean, boolean, boolean, CSVReaderNullFieldIndicator, Locale)
      * @param separator Please see the "See Also" section
@@ -408,7 +414,7 @@ public class CsvToBeanBuilder<T> {
         this.separator = separator;
         return this;
     }
-    
+
     /**
      * @see CSVParser#CSVParser(char, char, char, boolean, boolean, boolean, CSVReaderNullFieldIndicator, Locale)
      * @param quoteChar Please see the "See Also" section
@@ -418,7 +424,7 @@ public class CsvToBeanBuilder<T> {
         this.quoteChar = quoteChar;
         return this;
     }
-    
+
     /**
      * @see CSVParser#CSVParser(char, char, char, boolean, boolean, boolean, CSVReaderNullFieldIndicator, Locale)
      * @param escapeChar Please see the "See Also" section
@@ -428,7 +434,7 @@ public class CsvToBeanBuilder<T> {
         this.escapeChar = escapeChar;
         return this;
     }
-    
+
     /**
      * @see CSVParser#CSVParser(char, char, char, boolean, boolean, boolean, CSVReaderNullFieldIndicator, Locale)
      * @param strictQuotes Please see the "See Also" section
@@ -438,7 +444,7 @@ public class CsvToBeanBuilder<T> {
         this.strictQuotes = strictQuotes;
         return this;
     }
-    
+
     /**
      * @see CSVParser#CSVParser(char, char, char, boolean, boolean, boolean, CSVReaderNullFieldIndicator, Locale)
      * @param ignoreLeadingWhiteSpace Please see the "See Also" section
@@ -448,7 +454,7 @@ public class CsvToBeanBuilder<T> {
         this.ignoreLeadingWhiteSpace = ignoreLeadingWhiteSpace;
         return this;
     }
-    
+
     /**
      * @see CSVParser#CSVParser(char, char, char, boolean, boolean, boolean, CSVReaderNullFieldIndicator, Locale)
      * @param ignoreQuotations Please see the "See Also" section
@@ -458,7 +464,7 @@ public class CsvToBeanBuilder<T> {
         this.ignoreQuotations = ignoreQuotations;
         return this;
     }
-    
+
     /**
      * Sets the type of the bean to be populated.
      * Ignored if {@link #withMappingStrategy(com.opencsv.bean.MappingStrategy)}
@@ -472,11 +478,11 @@ public class CsvToBeanBuilder<T> {
         this.type = type;
         return this;
     }
-    
+
     /**
      * Sets the maximum number of lines allowed in a multiline record.
      * More than this number in one record results in an IOException.
-     * 
+     *
      * @param multilineLimit No more than this number of lines is allowed in a
      *   single input record. The default is {@link CSVReader#DEFAULT_MULTILINE_LIMIT}.
      * @return {@code this}
@@ -485,23 +491,23 @@ public class CsvToBeanBuilder<T> {
         this.multilineLimit = multilineLimit;
         return this;
     }
-    
+
     /**
      * Sets whether the resulting beans must be ordered as in the input.
-     * 
+     *
      * @param orderedResults Whether to order the results or not
      * @return {@code this}
-     * @see CsvToBean#setOrderedResults(boolean) 
+     * @see CsvToBean#setOrderedResults(boolean)
      * @since 4.0
      */
     public CsvToBeanBuilder<T> withOrderedResults(boolean orderedResults) {
         this.orderedResults = orderedResults;
         return this;
     }
-    
+
     /**
      * Sets the locale for all error messages.
-     * 
+     *
      * @param errorLocale Locale for error messages
      * @return {@code this}
      * @see CsvToBean#setErrorLocale(java.util.Locale)
@@ -564,6 +570,16 @@ public class CsvToBeanBuilder<T> {
     public CsvToBeanBuilder<T> withIgnoreEmptyLine(boolean ignore) {
         this.ignoreEmptyLines = ignore;
         return this;
+    }
+
+    /**
+     * @param strictColumnNumber Please see the "See Also" section
+     * @return {@code this}
+     * @see com.opencsv.bean.AbstractMappingStrategy#strictColumnNumber
+     */
+    public CsvToBeanBuilder<T> withStrictColumnNumber(boolean strictColumnNumber) {
+    	this.strictColumnNumber = strictColumnNumber;
+    	return this;
     }
 
     /**

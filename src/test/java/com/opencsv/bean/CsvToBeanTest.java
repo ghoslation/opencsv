@@ -1,15 +1,6 @@
 package com.opencsv.bean;
 
-import com.opencsv.*;
-import com.opencsv.bean.mocks.*;
-import com.opencsv.bean.verifier.PositiveEvensOnly;
-import com.opencsv.bean.verifier.PositiveOddsOnly;
-import com.opencsv.enums.CSVReaderNullFieldIndicator;
-import com.opencsv.exceptions.CsvConstraintViolationException;
-import com.opencsv.exceptions.CsvException;
-import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
-import org.apache.commons.lang3.StringUtils;
-import org.junit.jupiter.api.*;
+import static org.junit.Assert.*;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -19,12 +10,43 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.*;
+import org.apache.commons.lang3.StringUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import com.opencsv.CSVParser;
+import com.opencsv.CSVParserBuilder;
+import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
+import com.opencsv.ICSVParser;
+import com.opencsv.bean.mocks.AnnotatedMockBeanFull;
+import com.opencsv.bean.mocks.Bug133Bean;
+import com.opencsv.bean.mocks.Bug154Bean;
+import com.opencsv.bean.mocks.ErrorHeaderMappingStrategy;
+import com.opencsv.bean.mocks.ErrorLineMappingStrategy;
+import com.opencsv.bean.mocks.MinimalCsvBindByPositionBeanForWriting;
+import com.opencsv.bean.mocks.MockBean;
+import com.opencsv.bean.mocks.SingleNumber;
+import com.opencsv.bean.verifier.PositiveEvensOnly;
+import com.opencsv.bean.verifier.PositiveOddsOnly;
+import com.opencsv.enums.CSVReaderNullFieldIndicator;
+import com.opencsv.exceptions.CsvConstraintViolationException;
+import com.opencsv.exceptions.CsvException;
+import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
 
 public class CsvToBeanTest {
     private static final String TEST_STRING = "name,orderNumber,num\n" +
             "kyle,abc123456,123\n" +
             "jimmy,def098765,456 ";
+
+    private static final String TEST_STRING_NONE_STRICT_DATA_COLUMN = "name,orderNumber,num\n" +
+            "kyle,abc123456,123,456\n" +
+            "jimmy,def098765,456\n" +
+            "lily,ghi4321098\n";
 
     private static final String TEST_STRING_WITH_BLANK_LINES = "name,orderNumber,num\n" +
             "kyle,abc123456,123\n\n\n" +
@@ -88,6 +110,32 @@ public class CsvToBeanTest {
         assertTrue(beanList.contains(new MockBean("kyle", null, "abc123456", 123, 0.0)));
         assertTrue(beanList.contains(new MockBean("jimmy", null, "def098765", 456, 0.0)));
     }
+
+
+    @Test
+    public void parseBeanWithNoAnnotationsAndNoneStrictDataColumNumber() {
+        HeaderColumnNameMappingStrategy<MockBean> strategy = new HeaderColumnNameMappingStrategy<>();
+        strategy.setType(MockBean.class);
+        Assertions.assertDoesNotThrow(() -> {
+        	new CsvToBeanBuilder<MockBean>(new StringReader(TEST_STRING_NONE_STRICT_DATA_COLUMN))
+        	.withStrictColumnNumber(false)
+            .withMappingStrategy(strategy)
+            .withIgnoreEmptyLine(true)
+            .withFilter(null)
+            .build().parse();
+        });
+        List<MockBean> beanList = new CsvToBeanBuilder<MockBean>(new StringReader(TEST_STRING_NONE_STRICT_DATA_COLUMN))
+        		.withStrictColumnNumber(false)
+        		.withMappingStrategy(strategy)
+                .withFilter(null)
+                .build().parse(); // Extra arguments for code coverage
+
+        assertEquals(3, beanList.size());
+        assertTrue(beanList.contains(new MockBean("kyle", null, "abc123456", 123, 0.0)));
+        assertTrue(beanList.contains(new MockBean("jimmy", null, "def098765", 456, 0.0)));
+        assertTrue(beanList.contains(new MockBean("lily", null, "ghi4321098", 0, 0.0)));
+    }
+
 
     @DisplayName("Blank lines are ignored when withIgnoreEmptyLine is set to true.")
     @Test

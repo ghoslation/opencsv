@@ -15,15 +15,12 @@
  */
 package com.opencsv.bean.mocks;
 
+import org.apache.commons.lang3.ArrayUtils;
+
 import com.opencsv.CSVReader;
-import com.opencsv.bean.BeanField;
 import com.opencsv.bean.MappingStrategy;
 import com.opencsv.exceptions.CsvBadConverterException;
 import com.opencsv.exceptions.CsvBeanIntrospectionException;
-import org.apache.commons.lang3.ArrayUtils;
-
-import java.beans.PropertyDescriptor;
-import java.util.Locale;
 
 public class ErrorLineMappingStrategy<T> implements MappingStrategy<T> {
     @Override
@@ -34,7 +31,7 @@ public class ErrorLineMappingStrategy<T> implements MappingStrategy<T> {
     public String[] generateHeader(T bean) {
         return new String[0];
     }
-    
+
     @Override
     public void setType(Class type) throws CsvBadConverterException {}
 
@@ -47,4 +44,7 @@ public class ErrorLineMappingStrategy<T> implements MappingStrategy<T> {
     public String[] transmuteBean(T bean) {
         return ArrayUtils.EMPTY_STRING_ARRAY;
     }
+
+	@Override
+	public void setStrictColumnNumber(boolean strictColumnNumber) {}
 }

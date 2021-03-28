@@ -46,7 +46,7 @@ public interface MappingStrategy<T> {
      *   header or column position for the field is not present in the input
      */
     void captureHeader(CSVReader reader) throws IOException, CsvRequiredFieldEmptyException;
-   
+
     /**
      * Implementations of this method must return an array of column headers
      * based on the contents of the mapping strategy.
@@ -77,10 +77,10 @@ public interface MappingStrategy<T> {
      */
     @Deprecated
     default boolean isAnnotationDriven() {return false;}
-    
+
     /**
      * Takes a line of input from a CSV file and creates a bean out of it.
-     * 
+     *
      * @param line A line of input returned from {@link com.opencsv.CSVReader}
      * @return A bean containing the converted information from the input
      * @throws CsvBeanIntrospectionException Generally, if some part of the bean cannot
@@ -95,7 +95,7 @@ public interface MappingStrategy<T> {
     T populateNewBean(String[] line)
             throws CsvBeanIntrospectionException, CsvFieldAssignmentException,
             CsvChainedException;
-    
+
     /**
      * Sets the locale for all error messages.
      * The default implementation does nothing, as it is expected that most
@@ -106,7 +106,7 @@ public interface MappingStrategy<T> {
      * @since 4.0
      */
     default void setErrorLocale(Locale errorLocale) {}
-   
+
     /**
      * Sets the class type that is being mapped.
      * May perform additional initialization tasks. If instantiating a
@@ -121,6 +121,15 @@ public interface MappingStrategy<T> {
      *   safe to catch this exception and ignore it.
      */
     void setType(Class<? extends T> type) throws CsvBadConverterException;
+
+    /**
+     * Sets data columns number must equal with header columns number.
+     *
+     * @param strictColumnNumber set {@link true} if data columns number must equal with header columns number
+     * otherwise {@link false}
+     * @since 5.4.1.1
+     */
+    void setStrictColumnNumber(boolean strictColumnNumber);
 
     /**
      * Sets the profile this mapping strategy will use when configuring bean
@@ -173,11 +182,11 @@ public interface MappingStrategy<T> {
     default void ignoreFields(MultiValuedMap<Class<?>, Field> fields) throws IllegalArgumentException {
         throw new UnsupportedOperationException();
     }
-   
+
     /**
      * Transmutes a bean instance into an array of {@link String}s to be written
      * to a CSV file.
-     * 
+     *
      * @param bean The bean to be transmuted
      * @return The converted values of the bean fields in the correct order,
      *   ready to be passed to a {@link com.opencsv.CSVWriter}

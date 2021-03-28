@@ -91,7 +91,7 @@ abstract public class HeaderNameBaseMappingStrategy<T> extends AbstractMappingSt
     @Override
     public void verifyLineLength(int numberOfFields) throws CsvRequiredFieldEmptyException {
         if(!headerIndex.isEmpty()) {
-            if (numberOfFields != headerIndex.getHeaderIndexLength()) {
+            if (strictColumnNumber && numberOfFields != headerIndex.getHeaderIndexLength()) {
                 throw new CsvRequiredFieldEmptyException(type, ResourceBundle
                         .getBundle(ICSVParser.DEFAULT_BUNDLE_NAME, errorLocale)
                         .getString("header.data.mismatch"));
